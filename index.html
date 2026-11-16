@@ -96,7 +96,7 @@ small{font-size:12.5px}
 .preview{background:#2A3442;border-radius:12px;padding:10px;display:flex;justify-content:center;align-items:center;min-height:260px;position:relative}
 .preview img{max-width:100%;max-height:58vh;box-shadow:0 2px 12px rgba(0,0,0,.4);background:#fff}
 .preview .avert{position:absolute;top:10px;left:10px;right:10px;background:var(--yellow);color:#3B2C00;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:600;text-align:center}
-.unelte{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0}
+.unelte{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:10px 0}
 .unelte button{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 2px;font-size:12px;color:var(--infield);display:flex;flex-direction:column;align-items:center;gap:2px;min-height:56px}
 .unelte button .ic{font-size:19px}
 .filtrebtn{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px}
@@ -135,6 +135,9 @@ small{font-size:12.5px}
 .optiune{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:8px}
 .optiune input{width:22px;height:22px;margin-top:1px;-webkit-appearance:auto;appearance:auto;accent-color:var(--track);flex:none}
 .optiune small{display:block;color:var(--muted)}
+.segment{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.segment button{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px 4px;font-size:14px;color:var(--infield)}
+.segment button.activ{background:var(--infield);color:#fff;border-color:var(--infield)}
 .fis{font-size:13px;color:var(--muted);margin-top:8px;max-height:120px;overflow:auto}
 .lucreaza{position:fixed;inset:0;z-index:200;background:rgba(15,22,32,.6);display:none;align-items:center;justify-content:center;color:#fff;font-weight:600;flex-direction:column;gap:12px}
 .lucreaza.vizibil{display:flex}
@@ -209,7 +212,7 @@ small{font-size:12.5px}
    Concept: prof. Daniel Botezatu · realizată cu asistență AI (Claude)
    Toate datele stau pe telefon (IndexedDB). Backup: fișier JSON → Drive.
    ===================================================================== */
-const VERSIUNE = '1.1';
+const VERSIUNE = '1.2';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -615,12 +618,55 @@ function miniatura(c, latura) {
   const t = canvasNou(Math.max(1, Math.round(c.width * s)), Math.max(1, Math.round(c.height * s)));
   const x = t.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(c, 0, 0, t.width, t.height); return t;
 }
+/* ---- Mesaj pe document: bandă albă pe marginea aleasă (nu acoperă scrisul) ---- */
+function rupeRanduri(ctx, text, max) {
+  const out = [];
+  for (const par of String(text).split('\n')) {
+    let rand = '';
+    for (const cuv of par.split(/\s+/).filter(Boolean)) {
+      const t = rand ? rand + ' ' + cuv : cuv;
+      if (ctx.measureText(t).width > max && rand) { out.push(rand); rand = cuv; } else rand = t;
+    }
+    out.push(rand);
+  }
+  return out;
+}
+function adaugaMesaj(c, m) {
+  if (!m || !m.text || !m.text.trim()) return c;
+  const vert = m.poz === 'stanga' || m.poz === 'dreapta';
+  const lung = vert ? c.height : c.width;
+  const fs = Math.max(16, Math.round(Math.min(c.width, c.height) * 0.032));
+  const font = `600 ${fs}px Helvetica, Arial, sans-serif`;
+  const pad = Math.round(fs * 0.7), lh = Math.round(fs * 1.3);
+  const mx = canvasNou(1, 1).getContext('2d'); mx.font = font;
+  const randuri = rupeRanduri(mx, m.text.trim(), lung - 2 * pad);
+  const banda = randuri.length * lh + 2 * pad;
+  const o = vert ? canvasNou(c.width + banda, c.height) : canvasNou(c.width, c.height + banda);
+  const x = o.getContext('2d');
+  x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height);
+  const dx = m.poz === 'stanga' ? banda : 0, dy = m.poz === 'sus' ? banda : 0;
+  x.drawImage(c, dx, dy);
+  x.save();
+  // sistem local: axa x de-a lungul benzii, axa y spre interiorul benzii
+  if (m.poz === 'sus') x.translate(0, 0);
+  else if (m.poz === 'stanga') { x.translate(0, o.height); x.rotate(-Math.PI / 2); }
+  else if (m.poz === 'dreapta') { x.translate(o.width, 0); x.rotate(Math.PI / 2); }
+  else x.translate(0, c.height);
+  x.fillStyle = '#9AA5B1';
+  const lin = Math.max(1, Math.round(fs / 12));
+  if (m.poz === 'sus' || m.poz === 'stanga') x.fillRect(0, banda - lin, lung, lin); else x.fillRect(0, 0, lung, lin);
+  x.fillStyle = '#10204A'; x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle';
+  randuri.forEach((r, i) => x.fillText(r, lung / 2, pad + lh * i + lh / 2));
+  x.restore();
+  return o;
+}
 /* Pagina: originalul se păstrează, ca să poți corecta oricând colțurile */
 async function proceseaza(pg, origC, o = {}) {
   origC = origC || await blobInCanvas(pg.orig, 2400);
   let c = indreapta(origC, pg.colturi, S.setari.proportie);
   aplicaFiltru(c, pg.filtru);
   c = roteste(c, pg.rot || 0);
+  c = adaugaMesaj(c, pg.mesaj);
   pg.final = await canvasInBlob(c, S.setari.calitate);
   pg.fw = c.width; pg.fh = c.height;
   pg.thumb = await canvasInBlob(miniatura(c, 320), 0.75);
@@ -890,7 +936,8 @@ function randeazaEditor() {
         <button id="edCol"><span class="ic">⌗</span>Colțuri</button>
         <button id="edRot"><span class="ic">↻</span>Rotește</button>
         <button id="edMut" ${E.pages.length < 2 ? 'disabled' : ''}><span class="ic">⇄</span>Mută</button>
-        <button id="edDel"><span class="ic">🗑</span>Șterge pag.</button>
+        <button id="edMsg"><span class="ic">✎</span>${pg.mesaj && pg.mesaj.text ? 'Mesaj ✓' : 'Mesaj'}</button>
+        <button id="edDel"><span class="ic">🗑</span>Șterge</button>
       </div>
       <div class="filtrebtn">${FILTRE.map(([k, t]) => `<button data-f="${k}" class="${pg.filtru === k ? 'activ' : ''}">${t}</button>`).join('')}</div>
       <div class="banda">${E.pages.map((p, i) => `<button class="pg ${i === E.cur ? 'activ' : ''}" data-i="${i}"><img src="${urlPentru(p, 'thumb')}" alt=""><i>${i + 1}</i>${p.sigur ? '' : '<span class="w"></span>'}</button>`).join('')}</div>
@@ -907,6 +954,7 @@ function randeazaEditor() {
     $('#edCol').onclick = () => editeazaColturi(pg);
     $('#edRot').onclick = async () => { pg.rot = ((pg.rot || 0) + 90) % 360; await lucreaza(true); try { await proceseaza(pg); } finally { await lucreaza(false); } randeazaEditor(); };
     $('#edMut').onclick = () => mutaPagina();
+    $('#edMsg').onclick = () => fereastraMesaj(pg);
     $('#edDel').onclick = async () => {
       if (!await confirma(`Ștergi pagina ${E.cur + 1}?`, 'Șterge', true)) return;
       await DB.del('pages', pg.id); elibereazaURL(pg.id); E.pages.splice(E.cur, 1); E.cur = Math.max(0, E.cur - 1);
@@ -925,6 +973,35 @@ function randeazaEditor() {
   $('#edGal').onclick = () => inGal.click();
   if ($('#edGata')) $('#edGata').onclick = async () => { await incarcaCiorne(); arata('docs'); };
   if ($('#edSterge')) $('#edSterge').onclick = () => stergeDoc(doc);
+}
+const POZITII = [['sus', 'Sus'], ['jos', 'Jos'], ['stanga', 'Stânga'], ['dreapta', 'Dreapta']];
+let ultimulMesaj = { text: '', poz: 'jos' };
+function fereastraMesaj(pg) {
+  const m0 = pg.mesaj && pg.mesaj.text ? pg.mesaj : { text: ultimulMesaj.text, poz: ultimulMesaj.poz };
+  let poz = m0.poz || 'jos';
+  const multe = E.pages.length > 1;
+  const m = modal(`<h3>Mesaj pe document</h3>
+    <label class="f" style="margin-top:0">Textul mesajului</label>
+    <textarea id="msgT" placeholder="ex. Motivat 12–14.11.2026 – prof. diriginte">${esc(m0.text)}</textarea>
+    <label class="f">Unde apare</label>
+    <div class="segment">${POZITII.map(([k, t]) => `<button data-p="${k}" class="${k === poz ? 'activ' : ''}">${t}</button>`).join('')}</div>
+    ${multe ? `<label class="optiune"><input type="checkbox" id="msgToate"><div><b>Pe toate paginile documentului</b><small>Altfel doar pe pagina ${E.cur + 1}.</small></div></label>` : ''}
+    <p class="muted" style="font-size:13px">Mesajul se scrie pe o bandă albă adăugată la marginea paginii, fără să acopere documentul.</p>
+    <div class="act">${pg.mesaj && pg.mesaj.text ? '<button class="btn rosu" data-del>Șterge</button>' : '<button class="btn sec" data-x>Renunță</button>'}<button class="btn" data-ok>Aplică</button></div>`);
+  $$('[data-p]', m.el).forEach(b => b.onclick = () => { poz = b.dataset.p; $$('[data-p]', m.el).forEach(x => x.classList.toggle('activ', x === b)); });
+  if ($('[data-x]', m.el)) $('[data-x]', m.el).onclick = m.inchide;
+  const aplica = async (mesaj) => {
+    const tinta = multe && $('#msgToate', m.el)?.checked ? E.pages : [pg];
+    m.inchide(); await lucreaza(true, 'Scriu mesajul…');
+    try { for (const p of tinta) { p.mesaj = mesaj; await proceseaza(p); } } finally { await lucreaza(false); }
+    randeazaEditor();
+  };
+  if ($('[data-del]', m.el)) $('[data-del]', m.el).onclick = () => aplica(null);
+  $('[data-ok]', m.el).onclick = () => {
+    const text = $('#msgT', m.el).value.trim();
+    if (!text) return aplica(null);
+    ultimulMesaj = { text, poz }; aplica({ text, poz });
+  };
 }
 function mutaPagina() {
   const m = modal(`<h3>Mută pagina ${E.cur + 1}</h3><p class="muted">Alege noua poziție:</p>
@@ -1328,8 +1405,8 @@ function marcheazaSync(tip, id, op, n) {
 function programeazaUrcare(ms = 1200) { clearTimeout(SY.t); SY.t = setTimeout(urcaCoada, ms); }
 const colRef = () => SY.db.collection('utilizatori').doc(SY.uid).collection('date');
 const prefix = tip => tip === 'doc' ? 'scand' : tip === 'pag' ? 'scanp' : 'scanm';
-const parametriPagina = r => ({ docId: r.docId, ord: r.ord, creat: r.creat, colturi: r.colturi, sigur: r.sigur, filtru: r.filtru, rot: r.rot || 0, ow: r.ow, oh: r.oh });
-const cheieImagine = r => JSON.stringify([r.colturi, r.filtru, r.rot || 0]);
+const parametriPagina = r => ({ docId: r.docId, ord: r.ord, creat: r.creat, colturi: r.colturi, sigur: r.sigur, filtru: r.filtru, rot: r.rot || 0, ow: r.ow, oh: r.oh, mesaj: r.mesaj || null });
+const cheieImagine = r => JSON.stringify([r.colturi, r.filtru, r.rot || 0, r.mesaj || null]);
 const blobInBase64 = async b => (await blobInDataURL(b)).split(',')[1];
 
 function textSync() {
