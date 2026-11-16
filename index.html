@@ -212,7 +212,7 @@ small{font-size:12.5px}
    Concept: prof. Daniel Botezatu · realizată cu asistență AI (Claude)
    Toate datele stau pe telefon (IndexedDB). Backup: fișier JSON → Drive.
    ===================================================================== */
-const VERSIUNE = '1.2';
+const VERSIUNE = '1.3';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -632,30 +632,22 @@ function rupeRanduri(ctx, text, max) {
   return out;
 }
 function adaugaMesaj(c, m) {
+  // bandă portocaliu-pal, fixată în dreapta, sus; lungă cât textul; scris de sus în jos
   if (!m || !m.text || !m.text.trim()) return c;
-  const vert = m.poz === 'stanga' || m.poz === 'dreapta';
-  const lung = vert ? c.height : c.width;
   const fs = Math.max(16, Math.round(Math.min(c.width, c.height) * 0.032));
   const font = `600 ${fs}px Helvetica, Arial, sans-serif`;
-  const pad = Math.round(fs * 0.7), lh = Math.round(fs * 1.3);
+  const pad = Math.round(fs * 0.7), lh = Math.round(fs * 1.3), marg = Math.round(fs * 1.2);
   const mx = canvasNou(1, 1).getContext('2d'); mx.font = font;
-  const randuri = rupeRanduri(mx, m.text.trim(), lung - 2 * pad);
+  const randuri = rupeRanduri(mx, m.text.trim(), c.height - 2 * marg - 2 * pad);
+  const lung = Math.ceil(Math.max(...randuri.map(r => mx.measureText(r).width))) + 2 * pad;
   const banda = randuri.length * lh + 2 * pad;
-  const o = vert ? canvasNou(c.width + banda, c.height) : canvasNou(c.width, c.height + banda);
-  const x = o.getContext('2d');
+  const o = canvasNou(c.width + banda, c.height), x = o.getContext('2d');
   x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height);
-  const dx = m.poz === 'stanga' ? banda : 0, dy = m.poz === 'sus' ? banda : 0;
-  x.drawImage(c, dx, dy);
+  x.drawImage(c, 0, 0);
   x.save();
-  // sistem local: axa x de-a lungul benzii, axa y spre interiorul benzii
-  if (m.poz === 'sus') x.translate(0, 0);
-  else if (m.poz === 'stanga') { x.translate(0, o.height); x.rotate(-Math.PI / 2); }
-  else if (m.poz === 'dreapta') { x.translate(o.width, 0); x.rotate(Math.PI / 2); }
-  else x.translate(0, c.height);
-  x.fillStyle = '#9AA5B1';
-  const lin = Math.max(1, Math.round(fs / 12));
-  if (m.poz === 'sus' || m.poz === 'stanga') x.fillRect(0, banda - lin, lung, lin); else x.fillRect(0, 0, lung, lin);
-  x.fillStyle = '#10204A'; x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.translate(o.width, marg); x.rotate(Math.PI / 2);   // axa x în jos, axa y spre stânga (în bandă)
+  x.fillStyle = '#F6D9CB'; x.fillRect(0, 0, lung, banda);
+  x.fillStyle = '#5A2A16'; x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle';
   randuri.forEach((r, i) => x.fillText(r, lung / 2, pad + lh * i + lh / 2));
   x.restore();
   return o;
@@ -983,12 +975,9 @@ function fereastraMesaj(pg) {
   const m = modal(`<h3>Mesaj pe document</h3>
     <label class="f" style="margin-top:0">Textul mesajului</label>
     <textarea id="msgT" placeholder="ex. Motivat 12–14.11.2026 – prof. diriginte">${esc(m0.text)}</textarea>
-    <label class="f">Unde apare</label>
-    <div class="segment">${POZITII.map(([k, t]) => `<button data-p="${k}" class="${k === poz ? 'activ' : ''}">${t}</button>`).join('')}</div>
     ${multe ? `<label class="optiune"><input type="checkbox" id="msgToate"><div><b>Pe toate paginile documentului</b><small>Altfel doar pe pagina ${E.cur + 1}.</small></div></label>` : ''}
-    <p class="muted" style="font-size:13px">Mesajul se scrie pe o bandă albă adăugată la marginea paginii, fără să acopere documentul.</p>
+    <p class="muted" style="font-size:13px">Mesajul apare pe o bandă colorată în dreapta paginii, sus, fără să acopere documentul.</p>
     <div class="act">${pg.mesaj && pg.mesaj.text ? '<button class="btn rosu" data-del>Șterge</button>' : '<button class="btn sec" data-x>Renunță</button>'}<button class="btn" data-ok>Aplică</button></div>`);
-  $$('[data-p]', m.el).forEach(b => b.onclick = () => { poz = b.dataset.p; $$('[data-p]', m.el).forEach(x => x.classList.toggle('activ', x === b)); });
   if ($('[data-x]', m.el)) $('[data-x]', m.el).onclick = m.inchide;
   const aplica = async (mesaj) => {
     const tinta = multe && $('#msgToate', m.el)?.checked ? E.pages : [pg];
