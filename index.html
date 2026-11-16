@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scanare">
+<meta name="theme-color" content="#1E3348">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>Scanare documente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600&display=swap">
+<style>
+:root{
+  --infield:#1E3348; --track:#D9822B; --chalk:#F3F5F8; --card:#FFFFFF; --ink:#1B2430;
+  --muted:#667180; --border:#DCE1E8; --ok:#2E7D4F; --danger:#C0392B; --yellow:#E9B949;
+  --soft:#FCEEDF; --sel:#EAF1FB;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--chalk);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.4}
+button{font-family:inherit;cursor:pointer}
+header.sus{position:sticky;top:0;z-index:20;background:var(--infield);color:#fff;border-bottom:4px solid var(--track);
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;align-items:center;gap:10px}
+header.sus h1{font-family:Oswald,"Arial Narrow",sans-serif;text-transform:uppercase;font-size:20px;letter-spacing:.6px;margin:0;font-weight:600;flex:1;white-space:nowrap}
+#salvat{font-size:12px;opacity:.8;white-space:nowrap}
+main{padding:12px 12px calc(150px + env(safe-area-inset-bottom));max-width:820px;margin:0 auto}
+nav.jos{position:fixed;bottom:0;left:0;right:0;z-index:30;background:#fff;border-top:1px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav.jos button{flex:1;border:0;background:none;padding:8px 0 6px;font-size:11px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
+nav.jos button .ic{font-size:21px;line-height:24px;height:24px}
+nav.jos button.activ{color:var(--track);font-weight:700}
+nav.jos button.scan .ic{background:var(--track);color:#fff;border-radius:50%;width:52px;height:52px;display:flex;align-items:center;justify-content:center;margin-top:-26px;box-shadow:0 3px 10px rgba(0,0,0,.25);border:3px solid #fff}
+.view{display:none}.view.activ{display:block}
+h2{font-family:Oswald,"Arial Narrow",sans-serif;text-transform:uppercase;font-size:17px;letter-spacing:.4px;margin:18px 4px 8px;color:var(--infield);font-weight:600}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px}
+input,select,textarea{font-size:16px;font-family:inherit;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--ink);-webkit-appearance:none;appearance:none}
+select{background-image:linear-gradient(45deg,transparent 50%,#667180 50%),linear-gradient(135deg,#667180 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat;padding-right:32px}
+textarea{min-height:80px;resize:vertical}
+input[type=checkbox]{width:24px;height:24px;-webkit-appearance:auto;appearance:auto;accent-color:var(--track);margin:0}
+label.f{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px;font-weight:500}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:10px;background:var(--track);color:#fff;font-weight:600;font-size:15px;padding:12px 16px;min-height:46px}
+.btn.sec{background:#fff;color:var(--infield);border:1px solid var(--border)}
+.btn.inchis{background:var(--infield)}
+.btn.rosu{background:#fff;color:var(--danger);border:1px solid #F0C9C4}
+.btn.mic{padding:8px 12px;min-height:38px;font-size:14px}
+.btn.lat{width:100%}
+.btn:disabled{opacity:.5}
+.rand{display:flex;gap:8px;flex-wrap:wrap}
+.rand>.btn{flex:1}
+.muted{color:var(--muted)}
+small{font-size:12.5px}
+.gol{text-align:center;padding:30px 16px;color:var(--muted)}
+.gol .mare{font-size:44px;margin-bottom:6px}
+
+/* Documente */
+.cauta{display:flex;gap:8px;margin-bottom:8px}
+.filtre{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+.filtre select{padding:8px 30px 8px 10px;font-size:16px}
+.stat{display:flex;gap:8px;margin:6px 0 4px}
+.stat div{flex:1;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px}
+.stat b{display:block;font-size:20px;font-family:Oswald,sans-serif;color:var(--infield)}
+.stat span{font-size:12px;color:var(--muted)}
+.banner{background:var(--soft);border:1px solid #F1C99A;border-radius:10px;padding:10px 12px;margin:8px 0;display:flex;gap:10px;align-items:center;font-size:14px}
+.banner .btn{flex:none}
+.luna{margin-top:14px}
+.luna-cap{display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:2px solid var(--infield)}
+.luna-cap h3{font-family:Oswald,sans-serif;text-transform:uppercase;font-size:16px;margin:0;flex:1;color:var(--infield);letter-spacing:.4px;font-weight:600}
+.luna-cap .nr{font-size:12px;color:var(--muted)}
+.luna-cap button.tg{background:none;border:0;font-size:15px;color:var(--infield);padding:6px 4px;font-weight:600}
+.luna-cap button.bif{background:none;border:1px solid var(--border);border-radius:8px;font-size:12.5px;padding:5px 8px;color:var(--infield)}
+.doc{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:12px;padding:8px;margin-top:8px}
+.doc.bifat{background:var(--sel);border-color:#9DB9E2}
+.doc .chk{padding:6px 2px 6px 4px;display:flex}
+.doc img,.doc .ph{width:52px;height:68px;object-fit:cover;border-radius:6px;border:1px solid var(--border);background:#EEF1F5;flex:none}
+.doc .info{flex:1;min-width:0}
+.doc .info b{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.doc .info .l2{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tip{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;background:#E6ECF4;color:var(--infield);margin-top:3px}
+.trimis{display:inline-block;font-size:11.5px;color:var(--ok);font-weight:600;margin-left:6px}
+.selbar{position:fixed;left:0;right:0;bottom:calc(62px + env(safe-area-inset-bottom));z-index:29;background:var(--infield);color:#fff;display:none;align-items:center;gap:8px;padding:10px 12px}
+.selbar.vizibil{display:flex}
+.selbar span{flex:1;font-weight:600}
+.selbar .btn{min-height:40px;padding:8px 14px}
+.selbar .btn.sec{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}
+
+/* Editor */
+.ed-cap{display:flex;align-items:center;gap:8px;margin:4px 2px 10px}
+.ed-cap b{flex:1;font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.preview{background:#2A3442;border-radius:12px;padding:10px;display:flex;justify-content:center;align-items:center;min-height:260px;position:relative}
+.preview img{max-width:100%;max-height:58vh;box-shadow:0 2px 12px rgba(0,0,0,.4);background:#fff}
+.preview .avert{position:absolute;top:10px;left:10px;right:10px;background:var(--yellow);color:#3B2C00;border-radius:8px;padding:6px 10px;font-size:13px;font-weight:600;text-align:center}
+.unelte{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0}
+.unelte button{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 2px;font-size:12px;color:var(--infield);display:flex;flex-direction:column;align-items:center;gap:2px;min-height:56px}
+.unelte button .ic{font-size:19px}
+.filtrebtn{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px}
+.filtrebtn button{flex:none;border:1px solid var(--border);background:#fff;border-radius:20px;padding:7px 12px;font-size:13.5px;color:var(--infield)}
+.filtrebtn button.activ{background:var(--infield);color:#fff;border-color:var(--infield)}
+.banda{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 8px}
+.banda .pg{flex:none;position:relative;border:2px solid transparent;border-radius:8px;padding:0;background:none}
+.banda .pg.activ{border-color:var(--track)}
+.banda .pg img{width:60px;height:80px;object-fit:cover;border-radius:6px;display:block;background:#fff}
+.banda .pg i{position:absolute;bottom:3px;right:3px;background:rgba(0,0,0,.65);color:#fff;font-style:normal;font-size:11px;border-radius:5px;padding:0 5px}
+.banda .pg .w{position:absolute;top:3px;left:3px;width:12px;height:12px;border-radius:50%;background:var(--yellow);border:2px solid #fff}
+.scanbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.scanbtns .btn{min-height:56px}
+.pas{font-size:13.5px;color:var(--muted);margin:10px 4px}
+
+/* Corner editor */
+.ce{position:fixed;inset:0;z-index:100;background:#11161D;color:#fff;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+.ce-top,.ce-jos{display:flex;align-items:center;gap:8px;padding:10px 12px}
+.ce-top span{flex:1;text-align:center;font-size:14px;opacity:.85}
+.ce-jos{justify-content:center}
+.ce-zona{flex:1;position:relative;overflow:hidden;touch-action:none}
+.ce-stage{position:absolute;touch-action:none}
+.ce-stage canvas.img{position:absolute;inset:0;width:100%;height:100%}
+.ce-stage svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.ce .h{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:3px solid var(--track);background:rgba(217,130,43,.25);touch-action:none}
+.ce .h::after{content:"";position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#fff}
+.ce canvas.lupa{position:absolute;top:8px;width:120px;height:120px;border-radius:50%;border:3px solid #fff;display:none;pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+
+/* Modals */
+.fundal{position:fixed;inset:0;z-index:90;background:rgba(15,22,32,.55);display:flex;align-items:flex-end;justify-content:center}
+.modal{background:#fff;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+@media(min-width:600px){.fundal{align-items:center}.modal{border-radius:16px}}
+.modal h3{font-family:Oswald,sans-serif;text-transform:uppercase;font-size:18px;margin:0 0 8px;color:var(--infield);font-weight:600}
+.modal .act{display:flex;gap:8px;margin-top:16px}
+.modal .act .btn{flex:1}
+.optiune{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:8px}
+.optiune input{width:22px;height:22px;margin-top:1px;-webkit-appearance:auto;appearance:auto;accent-color:var(--track);flex:none}
+.optiune small{display:block;color:var(--muted)}
+.fis{font-size:13px;color:var(--muted);margin-top:8px;max-height:120px;overflow:auto}
+.lucreaza{position:fixed;inset:0;z-index:200;background:rgba(15,22,32,.6);display:none;align-items:center;justify-content:center;color:#fff;font-weight:600;flex-direction:column;gap:12px}
+.lucreaza.vizibil{display:flex}
+.spin{width:42px;height:42px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(140px + env(safe-area-inset-bottom));z-index:300;background:#1B2430;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;max-width:90vw;opacity:0;pointer-events:none;transition:opacity .25s}
+#toast.vizibil{opacity:1}
+
+/* Elevi & Setări */
+.elev{display:flex;align-items:center;gap:8px;padding:10px 4px;border-bottom:1px solid var(--border)}
+.elev:last-child{border-bottom:0}
+.elev .n{flex:1;min-width:0}
+.elev .n b{display:block;font-weight:600}
+.elev button{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:13px;color:var(--infield)}
+.autor{font-size:12.5px;color:var(--muted);text-align:center;margin:24px 8px 8px;line-height:1.5}
+</style>
+</head>
+<body>
+<header class="sus">
+  <h1 id="titlu">Scanare documente</h1>
+  <span id="salvat"></span>
+</header>
+
+<main>
+  <!-- ============ DOCUMENTE ============ -->
+  <section class="view activ" id="v-docs">
+    <div id="bannerBackup"></div>
+    <div class="stat" id="stat"></div>
+    <div class="cauta"><input id="q" type="search" placeholder="Caută: elev, tip, nume, observații…" autocomplete="off"></div>
+    <div class="filtre">
+      <select id="fTip"></select>
+      <select id="fClasa"></select>
+    </div>
+    <div id="lista"></div>
+  </section>
+
+  <!-- ============ SCANEAZĂ / EDITOR ============ -->
+  <section class="view" id="v-scan"></section>
+
+  <!-- ============ ELEVI ============ -->
+  <section class="view" id="v-elevi"></section>
+
+  <!-- ============ SETĂRI ============ -->
+  <section class="view" id="v-setari"></section>
+</main>
+
+<div class="selbar" id="selbar">
+  <span id="selnr">0 bifate</span>
+  <button class="btn sec" id="selAnul">Anulează</button>
+  <button class="btn" id="selTrimite">Trimite</button>
+</div>
+
+<nav class="jos">
+  <button data-v="docs" class="activ"><span class="ic">📄</span>Documente</button>
+  <button data-v="scan" class="scan"><span class="ic">📷</span>Scanează</button>
+  <button data-v="elevi"><span class="ic">👥</span>Elevi</button>
+  <button data-v="setari"><span class="ic">⚙️</span>Setări</button>
+</nav>
+
+<input type="file" id="inCamera" accept="image/*" capture="environment" hidden>
+<input type="file" id="inGalerie" accept="image/*" multiple hidden>
+<input type="file" id="inBackup" accept=".json,application/json" hidden>
+
+<div class="lucreaza" id="lucreaza"><div class="spin"></div><div id="lucreazaTxt">Se procesează…</div></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   SCANARE DOCUMENTE — aplicație web (PWA) pentru iPhone
+   Concept: prof. Daniel Botezatu · realizată cu asistență AI (Claude)
+   Toate datele stau pe telefon (IndexedDB). Backup: fișier JSON → Drive.
+   ===================================================================== */
+const VERSIUNE = '1.0';
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'];
+const pad = n => String(n).padStart(2, '0');
+const azi = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const lunaCurenta = () => azi().slice(0, 7);
+const numeLuna = l => { if (!l) return 'Fără lună'; const [y, m] = l.split('-'); return LUNI[+m - 1] + ' ' + y; };
+const dataRo = s => { if (!s) return ''; const [y, m, d] = s.split('-'); return `${d}.${m}.${y}`; };
+const faraDiacritice = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+const norm = s => faraDiacritice(s).toLowerCase().trim();
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+function lunaAnterioara(l, k = 1) { let [y, m] = l.split('-').map(Number); m -= k; while (m < 1) { m += 12; y--; } while (m > 12) { m -= 12; y++; } return `${y}-${pad(m)}`; }
+
+const SETARI_IMPLICITE = {
+  filtru: 'curat',          // curat | gri | an | original
+  proportie: 'auto',        // auto | a4
+  calitate: 0.82,
+  clasa: 'X F',
+  tipuri: ['Adeverință medicală', 'Cerere de motivare (părinte)', 'Cerere', 'Scutire medicală EFS', 'Declarație', 'Altul'],
+};
+const FILTRE = [['curat', 'Color curat'], ['gri', 'Gri'], ['an', 'Alb-negru'], ['original', 'Original']];
+
+/* ---------------- Stare ---------------- */
+const S = {
+  docs: [], elevi: [], setari: { ...SETARI_IMPLICITE },
+  sel: new Set(), deschise: new Set([lunaCurenta()]), ultimaLuna: null, lastBackup: null,
+  view: 'docs',
+};
+const E = { docId: null, pages: [], cur: 0 };   // editorul (document nou = ciorne)
+
+/* ---------------- IndexedDB ---------------- */
+const DB = {
+  db: null,
+  open() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('scanare_db', 1);
+      r.onupgradeneeded = () => {
+        const d = r.result;
+        if (!d.objectStoreNames.contains('docs')) d.createObjectStore('docs', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('pages')) d.createObjectStore('pages', { keyPath: 'id' });
+        if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'k' });
+      };
+      r.onsuccess = () => { DB.db = r.result; res(); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  _run(store, mode, fn) {
+    return new Promise((res, rej) => {
+      const t = DB.db.transaction(store, mode);
+      const req = fn(t.objectStore(store));
+      let out;
+      if (req) req.onsuccess = () => { out = req.result; };
+      t.oncomplete = () => res(out);
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error || new Error('Salvare întreruptă (spațiu insuficient?)'));
+    });
+  },
+  get: (s, id) => DB._run(s, 'readonly', st => st.get(id)),
+  all: (s) => DB._run(s, 'readonly', st => st.getAll()),
+  put: (s, v) => DB._run(s, 'readwrite', st => st.put(v)).then(marcheazaSalvat),
+  del: (s, id) => DB._run(s, 'readwrite', st => st.delete(id)).then(marcheazaSalvat),
+  async meta(k, def) { const r = await DB.get('meta', k); return r ? r.v : def; },
+  setMeta: (k, v) => DB.put('meta', { k, v }),
+};
+
+function marcheazaSalvat() {
+  const d = new Date();
+  $('#salvat').textContent = `Salvat ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+let toastT;
+function toast(msg, ms = 2600) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('vizibil');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('vizibil'), ms);
+}
+async function lucreaza(on, txt = 'Se procesează…') {
+  $('#lucreazaTxt').textContent = txt;
+  $('#lucreaza').classList.toggle('vizibil', on);
+  if (on) await frame();
+}
+window.addEventListener('error', e => toast('Eroare: ' + (e.message || e)));
+window.addEventListener('unhandledrejection', e => toast('Eroare: ' + (e.reason?.message || e.reason)));
+
+/* URL-uri pentru imagini (miniaturi / pagini) */
+const URLS = new Map();
+function urlPentru(pg, tip) {
+  const k = pg.id + ':' + tip + ':' + (pg.v || 0);
+  if (!URLS.has(k)) { const b = tip === 'thumb' ? pg.thumb : pg.final; if (!b) return ''; URLS.set(k, URL.createObjectURL(b)); }
+  return URLS.get(k);
+}
+function elibereazaURL(pgId) {
+  for (const [k, u] of URLS) if (k.startsWith(pgId + ':')) { URL.revokeObjectURL(u); URLS.delete(k); }
+}
+
+/* =====================================================================
+   PRELUCRAREA IMAGINII
+   ===================================================================== */
+const canvasNou = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+function incarcaImagine(blob) {
+  return new Promise((res, rej) => {
+    const u = URL.createObjectURL(blob); const i = new Image();
+    i.onload = () => { res(i); setTimeout(() => URL.revokeObjectURL(u), 3000); };
+    i.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Imaginea nu a putut fi citită')); };
+    i.src = u;
+  });
+}
+async function blobInCanvas(blob, maxLatura) {
+  const img = await incarcaImagine(blob);
+  let w = img.naturalWidth, h = img.naturalHeight;
+  const s = Math.min(1, maxLatura / Math.max(w, h));
+  w = Math.max(1, Math.round(w * s)); h = Math.max(1, Math.round(h * s));
+  const c = canvasNou(w, h); const x = c.getContext('2d');
+  x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, w, h);
+  return c;
+}
+const canvasInBlob = (c, q) => new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('Conversia imaginii a eșuat')), 'image/jpeg', q));
+
+/* ---- Detectarea automată a colțurilor foii ----
+   Foaia e mai deschisă la culoare și mai puțin colorată decât fundalul.
+   Încerc mai multe praguri, păstrez forma cea mai „dreptunghiulară”. */
+function blurCutie(src, w, h, r) {
+  const tmp = new Float32Array(w * h), out = new Float32Array(w * h), k = 2 * r + 1;
+  for (let y = 0; y < h; y++) {
+    let s = 0; const o = y * w;
+    for (let i = -r; i <= r; i++) s += src[o + Math.min(w - 1, Math.max(0, i))];
+    for (let x = 0; x < w; x++) {
+      tmp[o + x] = s / k;
+      s += src[o + Math.min(w - 1, x + r + 1)] - src[o + Math.max(0, x - r)];
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let s = 0;
+    for (let i = -r; i <= r; i++) s += tmp[Math.min(h - 1, Math.max(0, i)) * w + x];
+    for (let y = 0; y < h; y++) {
+      out[y * w + x] = s / k;
+      s += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
+    }
+  }
+  return out;
+}
+function otsu(hist, n) {
+  let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+  let sB = 0, wB = 0, best = 0, t = 128;
+  for (let i = 0; i < 256; i++) {
+    wB += hist[i]; if (!wB) continue; const wF = n - wB; if (!wF) break;
+    sB += i * hist[i]; const mB = sB / wB, mF = (sum - sB) / wF;
+    const v = wB * wF * (mB - mF) * (mB - mF); if (v > best) { best = v; t = i; }
+  }
+  return t;
+}
+function morfo(m, w, h, dilata) {
+  const o = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let v = dilata ? 0 : 1;
+    for (let dy = -1; dy <= 1 && (dilata ? !v : v); dy++) for (let dx = -1; dx <= 1; dx++) {
+      const xx = x + dx, yy = y + dy;
+      const q = (xx < 0 || yy < 0 || xx >= w || yy >= h) ? 0 : m[yy * w + xx];
+      if (dilata && q) { v = 1; break; }
+      if (!dilata && !q) { v = 0; break; }
+    }
+    o[y * w + x] = v;
+  }
+  return o;
+}
+function anvelopa(pts) { // convex hull (monotone chain)
+  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], up = [];
+  for (const p of pts) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  up.pop(); lo.pop(); return lo.concat(up);
+}
+const ariaPoligon = p => { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return a / 2; };
+function simplifica(p, max) { // elimin vârfurile care contează cel mai puțin
+  p = p.slice();
+  while (p.length > max) {
+    let mi = 0, ma = Infinity;
+    for (let i = 0; i < p.length; i++) {
+      const a = p[(i - 1 + p.length) % p.length], b = p[i], c = p[(i + 1) % p.length];
+      const ar = Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+      if (ar < ma) { ma = ar; mi = i; }
+    }
+    p.splice(mi, 1);
+  }
+  return p;
+}
+function patrulaterMaxim(p) {
+  if (p.length <= 4) return p;
+  let best = null, ba = -1; const n = p.length;
+  for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) for (let c = b + 1; c < n; c++) for (let d = c + 1; d < n; d++) {
+    const q = [p[a], p[b], p[c], p[d]]; const ar = Math.abs(ariaPoligon(q));
+    if (ar > ba) { ba = ar; best = q; }
+  }
+  return best;
+}
+function ordoneazaColturi(q) { // stânga-sus, dreapta-sus, dreapta-jos, stânga-jos
+  q = q.map(p => [p[0], p[1]]);
+  const cx = q.reduce((s, p) => s + p[0], 0) / 4, cy = q.reduce((s, p) => s + p[1], 0) / 4;
+  q.sort((a, b) => Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx));
+  let k = 0; for (let i = 1; i < 4; i++) if (q[i][0] + q[i][1] < q[k][0] + q[k][1]) k = i;
+  return q.slice(k).concat(q.slice(0, k));
+}
+function candidat(sc, w, h, t) {
+  const n = w * h; let m = new Uint8Array(n);
+  for (let i = 0; i < n; i++) m[i] = sc[i] > t ? 1 : 0;
+  m = morfo(m, w, h, false); m = morfo(m, w, h, false); m = morfo(m, w, h, true); m = morfo(m, w, h, true);
+  const lab = new Int32Array(n), st = new Int32Array(n); let nl = 0, bun = null;
+  for (let i = 0; i < n; i++) {
+    if (!m[i] || lab[i]) continue;
+    nl++; let sp = 0; st[sp++] = i; lab[i] = nl; let area = 0, sx = 0, sy = 0, mar = 0;
+    while (sp) {
+      const p = st[--sp]; area++; const px = p % w, py = (p / w) | 0; sx += px; sy += py;
+      if (px === 0) mar |= 1; if (px === w - 1) mar |= 2; if (py === 0) mar |= 4; if (py === h - 1) mar |= 8;
+      if (px > 0 && m[p - 1] && !lab[p - 1]) { lab[p - 1] = nl; st[sp++] = p - 1; }
+      if (px < w - 1 && m[p + 1] && !lab[p + 1]) { lab[p + 1] = nl; st[sp++] = p + 1; }
+      if (py > 0 && m[p - w] && !lab[p - w]) { lab[p - w] = nl; st[sp++] = p - w; }
+      if (py < h - 1 && m[p + w] && !lab[p + w]) { lab[p + w] = nl; st[sp++] = p + w; }
+    }
+    if (area > n * 0.08) {
+      const cx = sx / area / w - 0.5, cy = sy / area / h - 0.5;
+      const s = area / n * (1 - Math.hypot(cx, cy));
+      if (!bun || s > bun.s) bun = { id: nl, area, mar, s };
+    }
+  }
+  if (!bun) return null;
+  // umplu golurile (textul de pe foaie): tot ce nu se atinge din margine aparține foii
+  const afara = new Uint8Array(n); let sp = 0;
+  const pune = p => { if (!afara[p] && lab[p] !== bun.id) { afara[p] = 1; st[sp++] = p; } };
+  for (let x = 0; x < w; x++) { pune(x); pune((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { pune(y * w); pune(y * w + w - 1); }
+  while (sp) {
+    const p = st[--sp]; const px = p % w, py = (p / w) | 0;
+    if (px > 0) pune(p - 1); if (px < w - 1) pune(p + 1); if (py > 0) pune(p - w); if (py < h - 1) pune(p + w);
+  }
+  let plin = 0; const pts = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const p = y * w + x; if (afara[p]) continue; plin++;
+    if (x === 0 || y === 0 || x === w - 1 || y === h - 1 || afara[p - 1] || afara[p + 1] || afara[p - w] || afara[p + w]) pts.push([x + 0.5, y + 0.5]);
+  }
+  if (pts.length < 8) return null;
+  const q = patrulaterMaxim(simplifica(anvelopa(pts), 12));
+  if (!q || q.length < 4) return null;
+  const qa = Math.abs(ariaPoligon(q));
+  const rect = Math.min(plin, qa) / Math.max(plin, qa);
+  const frac = qa / n;
+  const margini = [1, 2, 4, 8].filter(b => bun.mar & b).length;
+  const scor = rect * Math.min(1, frac / 0.25) * (margini >= 3 ? 0.55 : margini === 2 ? 0.85 : 1);
+  return { quad: q, rect, scor, frac, margini };
+}
+const COLTURI_TOT = [[0, 0], [1, 0], [1, 1], [0, 1]];
+function detecteazaColturi(c) {
+  const s = Math.min(1, 360 / Math.max(c.width, c.height));
+  const w = Math.max(16, Math.round(c.width * s)), h = Math.max(16, Math.round(c.height * s));
+  const mc = canvasNou(w, h); const x = mc.getContext('2d', { willReadFrequently: true });
+  x.imageSmoothingQuality = 'high'; x.drawImage(c, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h).data; const n = w * h;
+  let sc = new Float32Array(n);
+  for (let i = 0, j = 0; i < n; i++, j += 4) {
+    const r = d[j], g = d[j + 1], b = d[j + 2];
+    sc[i] = 0.299 * r + 0.587 * g + 0.114 * b - 0.5 * (Math.max(r, g, b) - Math.min(r, g, b));
+  }
+  sc = blurCutie(sc, w, h, 2); sc = blurCutie(sc, w, h, 2);
+  const hist = new Float64Array(256);
+  for (let i = 0; i < n; i++) { const v = sc[i] < 0 ? 0 : sc[i] > 255 ? 255 : sc[i]; hist[v | 0]++; }
+  const t0 = otsu(hist, n);
+  let acc = 0, p99 = 255; for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= n * 0.01) { p99 = v; break; } }
+  const praguri = [t0, t0 + (p99 - t0) * 0.3, t0 + (p99 - t0) * 0.55, t0 * 0.85];
+  let best = null;
+  for (const t of praguri) { const k = candidat(sc, w, h, t); if (k && (!best || k.scor > best.scor)) best = k; }
+  if (!best) return { colturi: COLTURI_TOT.map(p => p.slice()), sigur: false };
+  const col = ordoneazaColturi(best.quad).map(([px, py]) => [Math.min(1, Math.max(0, px / w)), Math.min(1, Math.max(0, py / h))]);
+  return { colturi: col, sigur: best.scor > 0.6 && best.rect > 0.9, scor: best.scor };
+}
+
+/* ---- Îndreptarea perspectivei (omografie) ---- */
+function omografie(din, spre) { // găsește h astfel încât (u,v) din „din” → (x,y) din „spre”
+  const A = [];
+  for (let k = 0; k < 4; k++) {
+    const [u, v] = din[k], [x, y] = spre[k];
+    A.push([u, v, 1, 0, 0, 0, -u * x, -v * x, x]);
+    A.push([0, 0, 0, u, v, 1, -u * y, -v * y, y]);
+  }
+  for (let c = 0; c < 8; c++) {
+    let p = c; for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    [A[c], A[p]] = [A[p], A[c]];
+    const dv = A[c][c] || 1e-12;
+    for (let r = 0; r < 8; r++) if (r !== c) { const f = A[r][c] / dv; for (let k = c; k < 9; k++) A[r][k] -= f * A[c][k]; }
+  }
+  return A.map((r, i) => r[8] / (r[i] || 1e-12));
+}
+function indreapta(src, colturi, proportie) {
+  const W = src.width, H = src.height;
+  const P = colturi.map(([x, y]) => [x * W, y * H]);
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  let ow = Math.max(dist(P[0], P[1]), dist(P[3], P[2])), oh = Math.max(dist(P[0], P[3]), dist(P[1], P[2]));
+  if (proportie === 'a4') { const r = Math.SQRT2; if (oh >= ow) { oh = Math.max(oh, ow * r); ow = oh / r; } else { ow = Math.max(ow, oh * r); oh = ow / r; } }
+  const s = Math.min(1, 2200 / Math.max(ow, oh));
+  ow = Math.max(8, Math.round(ow * s)); oh = Math.max(8, Math.round(oh * s));
+  const h = omografie([[0, 0], [ow, 0], [ow, oh], [0, oh]], P);
+  const sd = src.getContext('2d').getImageData(0, 0, W, H).data;
+  const out = new ImageData(ow, oh), od = out.data;
+  let o = 0;
+  for (let v = 0; v < oh; v++) {
+    const vv = v + 0.5;
+    for (let u = 0; u < ow; u++) {
+      const uu = u + 0.5;
+      const den = h[6] * uu + h[7] * vv + 1;
+      let x = (h[0] * uu + h[1] * vv + h[2]) / den - 0.5, y = (h[3] * uu + h[4] * vv + h[5]) / den - 0.5;
+      if (x < 0) x = 0; else if (x > W - 1.001) x = W - 1.001;
+      if (y < 0) y = 0; else if (y > H - 1.001) y = H - 1.001;
+      const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0;
+      const i00 = (y0 * W + x0) * 4, i10 = i00 + 4, i01 = i00 + W * 4, i11 = i01 + 4;
+      const a = (1 - fx) * (1 - fy), b = fx * (1 - fy), c = (1 - fx) * fy, d = fx * fy;
+      od[o] = sd[i00] * a + sd[i10] * b + sd[i01] * c + sd[i11] * d;
+      od[o + 1] = sd[i00 + 1] * a + sd[i10 + 1] * b + sd[i01 + 1] * c + sd[i11 + 1] * d;
+      od[o + 2] = sd[i00 + 2] * a + sd[i10 + 2] * b + sd[i01 + 2] * c + sd[i11 + 2] * d;
+      od[o + 3] = 255; o += 4;
+    }
+  }
+  const c = canvasNou(ow, oh); c.getContext('2d').putImageData(out, 0, 0);
+  return c;
+}
+
+/* ---- Filtre: „scanare curată” = fundal alb uniform, scrisul închis ---- */
+function aplicaFiltru(c, filtru) {
+  if (filtru === 'original') return;
+  const w = c.width, h = c.height, ctx = c.getContext('2d');
+  const id = ctx.getImageData(0, 0, w, h), d = id.data;
+  const cs = Math.max(8, Math.round(Math.max(w, h) / 40));
+  const gw = Math.ceil(w / cs), gh = Math.ceil(h / cs), nc = gw * gh;
+  const hist = new Uint32Array(nc * 3 * 64), cnt = new Uint32Array(nc);
+  for (let y = 0; y < h; y += 2) {
+    const cy = (y / cs) | 0;
+    for (let x = 0; x < w; x += 2) {
+      const cell = cy * gw + ((x / cs) | 0), i = (y * w + x) * 4, b = cell * 192;
+      hist[b + (d[i] >> 2)]++; hist[b + 64 + (d[i + 1] >> 2)]++; hist[b + 128 + (d[i + 2] >> 2)]++; cnt[cell]++;
+    }
+  }
+  // fundalul fiecărei celule = percentila 90 (hârtia, nu scrisul)
+  let bg = [new Float32Array(nc), new Float32Array(nc), new Float32Array(nc)];
+  for (let cell = 0; cell < nc; cell++) for (let ch = 0; ch < 3; ch++) {
+    const lim = cnt[cell] * 0.1; let a = 0, v = 63; const b = cell * 192 + ch * 64;
+    for (; v > 0; v--) { a += hist[b + v]; if (a >= lim) break; }
+    bg[ch][cell] = Math.max(60, v * 4 + 2);
+  }
+  // netezire 3×3
+  bg = bg.map(g => { const o = new Float32Array(nc);
+    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) { let s = 0, k = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < gw && yy < gh) { s += g[yy * gw + xx]; k++; } }
+      o[y * gw + x] = s / k; }
+    return o; });
+  const lut = new Uint8ClampedArray(301);   // raport (0…1.5) → valoare
+  for (let i = 0; i <= 300; i++) { const r = i / 200; let v = (r - 0.3) / (0.9 - 0.3); v = v < 0 ? 0 : v > 1 ? 1 : v; lut[i] = 255 * Math.pow(v, 1.35); }
+  const R = bg[0], G = bg[1], B = bg[2];
+  for (let y = 0; y < h; y++) {
+    let gy = (y + 0.5) / cs - 0.5; if (gy < 0) gy = 0; if (gy > gh - 1) gy = gh - 1;
+    const y0 = gy | 0, y1 = Math.min(gh - 1, y0 + 1), fy = gy - y0;
+    for (let x = 0; x < w; x++) {
+      let gx = (x + 0.5) / cs - 0.5; if (gx < 0) gx = 0; if (gx > gw - 1) gx = gw - 1;
+      const x0 = gx | 0, x1 = Math.min(gw - 1, x0 + 1), fx = gx - x0;
+      const a = y0 * gw + x0, b = y0 * gw + x1, cc = y1 * gw + x0, dd = y1 * gw + x1;
+      const wa = (1 - fx) * (1 - fy), wb = fx * (1 - fy), wc = (1 - fx) * fy, wd = fx * fy;
+      const br = R[a] * wa + R[b] * wb + R[cc] * wc + R[dd] * wd;
+      const bgg = G[a] * wa + G[b] * wb + G[cc] * wc + G[dd] * wd;
+      const bb = B[a] * wa + B[b] * wb + B[cc] * wc + B[dd] * wd;
+      const i = (y * w + x) * 4;
+      const rr = d[i] / br, rg = d[i + 1] / bgg, rb = d[i + 2] / bb;
+      if (filtru === 'curat') {
+        d[i] = lut[Math.min(300, (rr * 200) | 0)]; d[i + 1] = lut[Math.min(300, (rg * 200) | 0)]; d[i + 2] = lut[Math.min(300, (rb * 200) | 0)];
+      } else {
+        const L = 0.299 * rr + 0.587 * rg + 0.114 * rb;
+        const v = filtru === 'an' ? (L < 0.72 ? 0 : 255) : lut[Math.min(300, (L * 200) | 0)];
+        d[i] = d[i + 1] = d[i + 2] = v;
+      }
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+}
+function roteste(c, grade) {
+  grade = ((grade % 360) + 360) % 360; if (!grade) return c;
+  const o = grade === 180 ? canvasNou(c.width, c.height) : canvasNou(c.height, c.width);
+  const x = o.getContext('2d'); x.translate(o.width / 2, o.height / 2); x.rotate(grade * Math.PI / 180);
+  x.drawImage(c, -c.width / 2, -c.height / 2); return o;
+}
+function miniatura(c, latura) {
+  const s = latura / Math.max(c.width, c.height);
+  const t = canvasNou(Math.max(1, Math.round(c.width * s)), Math.max(1, Math.round(c.height * s)));
+  const x = t.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(c, 0, 0, t.width, t.height); return t;
+}
+/* Pagina: originalul se păstrează, ca să poți corecta oricând colțurile */
+async function proceseaza(pg, origC) {
+  origC = origC || await blobInCanvas(pg.orig, 2400);
+  let c = indreapta(origC, pg.colturi, S.setari.proportie);
+  aplicaFiltru(c, pg.filtru);
+  c = roteste(c, pg.rot || 0);
+  pg.final = await canvasInBlob(c, S.setari.calitate);
+  pg.fw = c.width; pg.fh = c.height;
+  pg.thumb = await canvasInBlob(miniatura(c, 320), 0.75);
+  elibereazaURL(pg.id); pg.v = (pg.v || 0) + 1;
+  await DB.put('pages', pg);
+  return pg;
+}
+
+/* =====================================================================
+   PDF (generat direct în telefon, fără internet)
+   ===================================================================== */
+function facePDF(imagini) { // [{data:Uint8Array (JPEG), w, h}] → Blob; fiecare pagină A4
+  const enc = new TextEncoder(); const parti = []; let poz = 0; const offs = [];
+  const scrie = x => { const b = typeof x === 'string' ? enc.encode(x) : x; parti.push(b); poz += b.length; };
+  const obiect = (id, ...bucati) => { offs[id] = poz; scrie(`${id} 0 obj\n`); bucati.forEach(scrie); scrie('\nendobj\n'); };
+  scrie(new Uint8Array([37, 80, 68, 70, 45, 49, 46, 52, 10, 37, 226, 227, 207, 211, 10]));
+  const n = imagini.length, kids = [];
+  for (let i = 0; i < n; i++) kids.push(`${3 + i * 3} 0 R`);
+  obiect(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obiect(2, `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${n} >>`);
+  imagini.forEach((im, i) => {
+    const pid = 3 + i * 3, iid = pid + 1, cid = pid + 2;
+    const peLat = im.w > im.h; const pw = peLat ? 841.89 : 595.28, ph = peLat ? 595.28 : 841.89;
+    const m = 14; const sc = Math.min((pw - 2 * m) / im.w, (ph - 2 * m) / im.h);
+    const dw = im.w * sc, dh = im.h * sc, dx = (pw - dw) / 2, dy = (ph - dh) / 2;
+    const cont = `q ${dw.toFixed(2)} 0 0 ${dh.toFixed(2)} ${dx.toFixed(2)} ${dy.toFixed(2)} cm /Im0 Do Q`;
+    obiect(pid, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 ${iid} 0 R >> /ProcSet [/PDF /ImageC] >> /Contents ${cid} 0 R >>`);
+    obiect(iid, `<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>\nstream\n`, im.data, '\nendstream');
+    obiect(cid, `<< /Length ${cont.length} >>\nstream\n${cont}\nendstream`);
+  });
+  const total = 3 + n * 3; const xref = poz;
+  let x = `xref\n0 ${total}\n0000000000 65535 f \n`;
+  for (let i = 1; i < total; i++) x += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
+  scrie(x + `trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob(parti, { type: 'application/pdf' });
+}
+async function pdfDinPagini(pagini) {
+  const im = [];
+  for (const p of pagini) im.push({ data: new Uint8Array(await p.final.arrayBuffer()), w: p.fw, h: p.fh });
+  return facePDF(im);
+}
+
+/* =====================================================================
+   DATE: documente, pagini, elevi
+   ===================================================================== */
+async function incarcaTot() {
+  S.docs = await DB.all('docs');
+  S.elevi = await DB.meta('elevi', []);
+  S.setari = { ...SETARI_IMPLICITE, ...(await DB.meta('setari', {})) };
+  S.ultimaLuna = await DB.meta('ultimaLuna', null);
+  S.lastBackup = await DB.meta('lastBackup', null);
+  migreazaDate();
+}
+function migreazaDate() { // completează câmpurile lipsă, nu șterge nimic
+  for (const d of S.docs) {
+    d.pagini = d.pagini || []; d.trimis = d.trimis || [];
+    d.luna = d.luna || (d.data || azi()).slice(0, 7);
+    d.clasa = d.clasa || ''; d.elev = d.elev || ''; d.tip = d.tip || 'Altul';
+  }
+  for (const e of S.elevi) { e.id = e.id || uid(); e.clasa = e.clasa || S.setari.clasa; }
+}
+async function paginiDoc(d) {
+  const out = [];
+  for (const id of d.pagini) { const p = await DB.get('pages', id); if (p) out.push(p); }
+  return out;
+}
+async function incarcaCiorne() {
+  const toate = await DB.all('pages');
+  E.docId = null;
+  E.pages = toate.filter(p => p.docId === '__draft').sort((a, b) => (a.ord ?? a.creat) - (b.ord ?? b.creat));
+  E.cur = Math.max(0, E.pages.length - 1);
+}
+async function salveazaOrdine() {
+  if (E.docId) {
+    const d = S.docs.find(x => x.id === E.docId);
+    if (d) { d.pagini = E.pages.map(p => p.id); d.modificat = Date.now(); await DB.put('docs', d); }
+  } else {
+    for (let i = 0; i < E.pages.length; i++) if (E.pages[i].ord !== i) { E.pages[i].ord = i; await DB.put('pages', E.pages[i]); }
+  }
+}
+const salveazaSetari = () => DB.setMeta('setari', S.setari);
+const salveazaElevi = () => DB.setMeta('elevi', S.elevi);
+function clase() {
+  const s = new Set([S.setari.clasa]);
+  S.elevi.forEach(e => e.clasa && s.add(e.clasa)); S.docs.forEach(d => d.clasa && s.add(d.clasa));
+  return [...s].filter(Boolean).sort((a, b) => a.localeCompare(b, 'ro'));
+}
+function numeFisier(d) {
+  const baza = `${d.elev || 'Fara elev'} - ${d.tip} - ${dataRo(d.data)}`;
+  return faraDiacritice(baza).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120);
+}
+
+/* =====================================================================
+   INTERFAȚA — navigare
+   ===================================================================== */
+function arata(v) {
+  S.view = v;
+  $$('.view').forEach(x => x.classList.toggle('activ', x.id === 'v-' + v));
+  $$('nav.jos button').forEach(b => b.classList.toggle('activ', b.dataset.v === v));
+  $('#titlu').textContent = { docs: 'Documente', scan: E.docId ? 'Document' : 'Scanează', elevi: 'Elevi', setari: 'Setări' }[v];
+  if (v === 'docs') randeazaDocs();
+  if (v === 'scan') randeazaEditor();
+  if (v === 'elevi') randeazaElevi();
+  if (v === 'setari') randeazaSetari();
+  actualizeazaSelbar();
+  window.scrollTo(0, 0);
+}
+$$('nav.jos button').forEach(b => b.addEventListener('click', () => arata(b.dataset.v)));
+
+/* ---------------- Ferestre (modale) ---------------- */
+function modal(html) {
+  const f = document.createElement('div'); f.className = 'fundal';
+  f.innerHTML = `<div class="modal">${html}</div>`;
+  document.body.appendChild(f);
+  f.addEventListener('click', e => { if (e.target === f) inchide(); });
+  function inchide() { f.remove(); }
+  return { el: f.firstElementChild, inchide };
+}
+function confirma(text, da = 'Da', periculos = false) {
+  return new Promise(res => {
+    const m = modal(`<h3>Confirmare</h3><p>${text}</p><div class="act"><button class="btn sec" data-r="0">Renunță</button><button class="btn ${periculos ? 'rosu' : ''}" data-r="1">${esc(da)}</button></div>`);
+    $$('[data-r]', m.el).forEach(b => b.onclick = () => { m.inchide(); res(b.dataset.r === '1'); });
+  });
+}
+
+/* =====================================================================
+   DOCUMENTE (grupate pe luni)
+   ===================================================================== */
+const F = { q: '', tip: '', clasa: '' };
+$('#q').addEventListener('input', e => { F.q = e.target.value; randeazaLista(); });
+$('#fTip').addEventListener('change', e => { F.tip = e.target.value; randeazaLista(); });
+$('#fClasa').addEventListener('change', e => { F.clasa = e.target.value; randeazaLista(); });
+
+function randeazaDocs() {
+  $('#fTip').innerHTML = `<option value="">Toate tipurile</option>` + [...new Set([...S.setari.tipuri, ...S.docs.map(d => d.tip)])].map(t => `<option ${t === F.tip ? 'selected' : ''}>${esc(t)}</option>`).join('');
+  $('#fClasa').innerHTML = `<option value="">Toate clasele</option>` + clase().map(c => `<option ${c === F.clasa ? 'selected' : ''}>${esc(c)}</option>`).join('');
+  const lc = lunaCurenta(), dl = S.docs.filter(d => d.luna === lc);
+  const netrimise = dl.filter(d => !d.trimis.length).length;
+  $('#stat').innerHTML = `<div><b>${dl.length}</b><span>${esc(numeLuna(lc))}</span></div><div><b>${netrimise}</b><span>netrimise luna asta</span></div><div><b>${S.docs.length}</b><span>în total</span></div>`;
+  const zile = S.lastBackup ? Math.floor((Date.now() - S.lastBackup) / 864e5) : null;
+  $('#bannerBackup').innerHTML = (S.docs.length && (zile === null || zile >= 7))
+    ? `<div class="banner"><div style="flex:1">${zile === null ? 'Nu ai făcut încă un backup.' : `Ultimul backup: acum ${zile} zile.`} Salvează o copie în Drive.</div><button class="btn mic" id="bkAcum">Backup</button></div>` : '';
+  const bk = $('#bkAcum'); if (bk) bk.onclick = () => pregatesteBackup(null);
+  randeazaLista();
+}
+function potriveste(d) {
+  if (F.tip && d.tip !== F.tip) return false;
+  if (F.clasa && d.clasa !== F.clasa) return false;
+  if (F.q) {
+    const t = norm([d.nume, d.elev, d.tip, d.clasa, d.obs, numeLuna(d.luna), dataRo(d.data)].join(' '));
+    return norm(F.q).split(/\s+/).every(c => t.includes(c));
+  }
+  return true;
+}
+function randeazaLista() {
+  const L = $('#lista');
+  if (!S.docs.length) {
+    L.innerHTML = `<div class="gol"><div class="mare">📄</div><b>Niciun document încă.</b><br>Apasă <b>Scanează</b> jos, fotografiază foaia și gata.</div>`;
+    return;
+  }
+  const filtrate = S.docs.filter(potriveste);
+  if (!filtrate.length) { L.innerHTML = `<div class="gol">Nimic găsit pentru căutarea asta.</div>`; return; }
+  const cautare = !!(F.q || F.tip || F.clasa);
+  const grupe = {};
+  filtrate.forEach(d => (grupe[d.luna] = grupe[d.luna] || []).push(d));
+  const luni = Object.keys(grupe).sort().reverse();
+  L.innerHTML = luni.map(l => {
+    const lista = grupe[l].sort((a, b) => (b.data || '').localeCompare(a.data || '') || (b.creat - a.creat));
+    const deschis = cautare || S.deschise.has(l);
+    const toateBif = lista.every(d => S.sel.has(d.id));
+    return `<div class="luna" data-l="${l}">
+      <div class="luna-cap">
+        <button class="tg" data-tg="${l}">${deschis ? '▾' : '▸'}</button>
+        <h3 data-tg="${l}">${esc(numeLuna(l))}</h3><span class="nr">${lista.length} doc.</span>
+        <button class="bif" data-bl="${l}">${toateBif ? 'Debifează' : 'Bifează luna'}</button>
+      </div>
+      ${deschis ? lista.map(randDoc).join('') : ''}
+    </div>`;
+  }).join('');
+  $$('[data-tg]', L).forEach(b => b.onclick = () => { const l = b.dataset.tg; S.deschise.has(l) ? S.deschise.delete(l) : S.deschise.add(l); randeazaLista(); });
+  $$('[data-bl]', L).forEach(b => b.onclick = () => {
+    const ids = grupe[b.dataset.bl].map(d => d.id); const toate = ids.every(i => S.sel.has(i));
+    ids.forEach(i => toate ? S.sel.delete(i) : S.sel.add(i));
+    S.deschise.add(b.dataset.bl); randeazaLista(); actualizeazaSelbar();
+  });
+  $$('.doc', L).forEach(el => {
+    const id = el.dataset.id;
+    $('input', el).onchange = e => { e.target.checked ? S.sel.add(id) : S.sel.delete(id); el.classList.toggle('bifat', e.target.checked); actualizeazaSelbar(); };
+    $('.chk', el).onclick = e => e.stopPropagation();
+    el.onclick = () => deschideDoc(id);
+  });
+  incarcaMiniaturi();
+}
+function randDoc(d) {
+  const ult = d.trimis[d.trimis.length - 1];
+  return `<div class="doc ${S.sel.has(d.id) ? 'bifat' : ''}" data-id="${d.id}">
+    <label class="chk"><input type="checkbox" ${S.sel.has(d.id) ? 'checked' : ''}></label>
+    <img data-thumb="${d.pagini[0] || ''}" alt="">
+    <div class="info"><b>${esc(d.elev || d.nume)}</b>
+      <div class="l2">${esc(dataRo(d.data))} · ${esc(d.clasa)} · ${d.pagini.length} pag.${d.obs ? ' · ' + esc(d.obs) : ''}</div>
+      <span class="tip">${esc(d.tip)}</span>${ult ? `<span class="trimis">✓ trimis ${esc(dataRo(ult.la.slice(0, 10)).slice(0, 5))}</span>` : ''}
+    </div></div>`;
+}
+async function incarcaMiniaturi() {
+  for (const img of $$('img[data-thumb]')) {
+    const id = img.dataset.thumb; if (!id) continue;
+    const p = await DB.get('pages', id); if (p && p.thumb) img.src = urlPentru(p, 'thumb');
+  }
+}
+function actualizeazaSelbar() {
+  const n = S.sel.size;
+  $('#selbar').classList.toggle('vizibil', n > 0 && S.view === 'docs');
+  $('#selnr').textContent = n === 1 ? '1 document bifat' : `${n} documente bifate`;
+}
+$('#selAnul').onclick = () => { S.sel.clear(); randeazaLista(); actualizeazaSelbar(); };
+$('#selTrimite').onclick = () => deschideTrimite([...S.sel]);
+
+/* =====================================================================
+   EDITOR (scanare + pagini)
+   ===================================================================== */
+const inCam = $('#inCamera'), inGal = $('#inGalerie');
+inCam.onchange = () => { const f = [...inCam.files]; inCam.value = ''; adaugaFisiere(f); };
+inGal.onchange = () => { const f = [...inGal.files]; inGal.value = ''; adaugaFisiere(f); };
+
+async function adaugaFisiere(files) {
+  if (!files.length) return;
+  const nesigure = [];
+  try {
+    for (let i = 0; i < files.length; i++) {
+      await lucreaza(true, files.length > 1 ? `Pagina ${i + 1} din ${files.length}…` : 'Caut marginile foii…');
+      const c = await blobInCanvas(files[i], 2400);
+      const orig = await canvasInBlob(c, 0.9);
+      const det = detecteazaColturi(c);
+      const pg = { id: uid(), docId: E.docId || '__draft', ord: E.pages.length, creat: Date.now(), orig, ow: c.width, oh: c.height,
+        colturi: det.colturi, sigur: det.sigur, filtru: S.setari.filtru, rot: 0 };
+      await proceseaza(pg, c);
+      E.pages.push(pg); E.cur = E.pages.length - 1;
+      if (!pg.sigur) nesigure.push(pg);
+    }
+    if (E.docId) await salveazaOrdine();
+  } catch (e) { toast('Eroare: ' + e.message, 4000); }
+  finally { await lucreaza(false); }
+  if (S.view !== 'scan') arata('scan'); else randeazaEditor();
+  if (nesigure.length === 1 && files.length === 1) {
+    toast('Nu am găsit sigur marginile — potrivește colțurile.', 3500);
+    await editeazaColturi(nesigure[0]);
+  } else if (nesigure.length) toast(`${nesigure.length} pagini de verificat (punct galben).`, 3500);
+}
+
+function randeazaEditor() {
+  const V = $('#v-scan');
+  const doc = E.docId ? S.docs.find(d => d.id === E.docId) : null;
+  if (!E.pages.length) {
+    V.innerHTML = `${doc ? `<div class="ed-cap"><b>${esc(doc.nume)}</b><button class="btn mic sec" id="edGata">Închide</button></div>` : ''}
+      <div class="gol"><div class="mare">📷</div><b>${doc ? 'Documentul nu mai are pagini.' : 'Scanează un document'}</b><br>
+      Pune foaia pe o suprafață mai închisă la culoare, cu puțin spațiu în jur. Colțurile se găsesc singure.</div>
+      <div class="scanbtns"><button class="btn" id="edCam">📷 Fotografiază</button><button class="btn sec" id="edGal">🖼 Din galerie</button></div>
+      ${doc ? `<button class="btn rosu lat" id="edSterge" style="margin-top:12px">Șterge documentul</button>` : `<p class="pas">Poți pune mai multe pagini într-un document. La final apeși <b>Salvează documentul</b> și completezi elevul, tipul și luna.</p>`}`;
+  } else {
+    E.cur = Math.min(E.cur, E.pages.length - 1);
+    const pg = E.pages[E.cur];
+    V.innerHTML = `
+      <div class="ed-cap"><b>${doc ? esc(doc.nume) : 'Document nou'}</b><span class="muted">${E.pages.length} pag.</span>
+        ${doc ? `<button class="btn mic sec" id="edGata">Gata</button>` : ''}</div>
+      <div class="preview">${pg.sigur ? '' : `<div class="avert">Verifică marginile acestei pagini</div>`}<img src="${urlPentru(pg, 'final')}" alt="Pagina ${E.cur + 1}"></div>
+      <div class="unelte">
+        <button id="edCol"><span class="ic">⌗</span>Colțuri</button>
+        <button id="edRot"><span class="ic">↻</span>Rotește</button>
+        <button id="edMut" ${E.pages.length < 2 ? 'disabled' : ''}><span class="ic">⇄</span>Mută</button>
+        <button id="edDel"><span class="ic">🗑</span>Șterge pag.</button>
+      </div>
+      <div class="filtrebtn">${FILTRE.map(([k, t]) => `<button data-f="${k}" class="${pg.filtru === k ? 'activ' : ''}">${t}</button>`).join('')}</div>
+      <div class="banda">${E.pages.map((p, i) => `<button class="pg ${i === E.cur ? 'activ' : ''}" data-i="${i}"><img src="${urlPentru(p, 'thumb')}" alt=""><i>${i + 1}</i>${p.sigur ? '' : '<span class="w"></span>'}</button>`).join('')}</div>
+      <div class="scanbtns"><button class="btn sec" id="edCam">📷 Încă o pagină</button><button class="btn sec" id="edGal">🖼 Din galerie</button></div>
+      ${doc
+        ? `<div class="rand" style="margin-top:6px"><button class="btn sec" id="edDet">✎ Detalii</button><button class="btn" id="edTrim">📤 Trimite</button></div>
+           <button class="btn rosu lat" id="edSterge" style="margin-top:14px">Șterge documentul</button>`
+        : `<div class="rand" style="margin-top:6px"><button class="btn sec" id="edRen">Renunță</button><button class="btn" id="edSalv" style="flex:2">💾 Salvează documentul</button></div>`}`;
+    $$('.banda .pg', V).forEach(b => b.onclick = () => { E.cur = +b.dataset.i; randeazaEditor(); });
+    $$('[data-f]', V).forEach(b => b.onclick = async () => {
+      if (pg.filtru === b.dataset.f) return; pg.filtru = b.dataset.f;
+      await lucreaza(true); try { await proceseaza(pg); } finally { await lucreaza(false); } randeazaEditor();
+    });
+    $('#edCol').onclick = () => editeazaColturi(pg);
+    $('#edRot').onclick = async () => { pg.rot = ((pg.rot || 0) + 90) % 360; await lucreaza(true); try { await proceseaza(pg); } finally { await lucreaza(false); } randeazaEditor(); };
+    $('#edMut').onclick = () => mutaPagina();
+    $('#edDel').onclick = async () => {
+      if (!await confirma(`Ștergi pagina ${E.cur + 1}?`, 'Șterge', true)) return;
+      await DB.del('pages', pg.id); elibereazaURL(pg.id); E.pages.splice(E.cur, 1); E.cur = Math.max(0, E.cur - 1);
+      await salveazaOrdine(); randeazaEditor();
+    };
+    if ($('#edSalv')) $('#edSalv').onclick = () => formularDoc(null);
+    if ($('#edRen')) $('#edRen').onclick = async () => {
+      if (!await confirma('Renunți la paginile scanate? Se șterg.', 'Renunță la ele', true)) return;
+      for (const p of E.pages) { await DB.del('pages', p.id); elibereazaURL(p.id); }
+      E.pages = []; randeazaEditor();
+    };
+    if ($('#edDet')) $('#edDet').onclick = () => formularDoc(doc);
+    if ($('#edTrim')) $('#edTrim').onclick = () => deschideTrimite([doc.id]);
+  }
+  $('#edCam').onclick = () => inCam.click();
+  $('#edGal').onclick = () => inGal.click();
+  if ($('#edGata')) $('#edGata').onclick = async () => { await incarcaCiorne(); arata('docs'); };
+  if ($('#edSterge')) $('#edSterge').onclick = () => stergeDoc(doc);
+}
+function mutaPagina() {
+  const m = modal(`<h3>Mută pagina ${E.cur + 1}</h3><p class="muted">Alege noua poziție:</p>
+    <div class="rand">${E.pages.map((_, i) => `<button class="btn ${i === E.cur ? 'inchis' : 'sec'} mic" data-p="${i}" style="flex:0 0 56px">${i + 1}</button>`).join('')}</div>
+    <div class="act"><button class="btn sec" data-x>Închide</button></div>`);
+  $('[data-x]', m.el).onclick = m.inchide;
+  $$('[data-p]', m.el).forEach(b => b.onclick = async () => {
+    const to = +b.dataset.p; const [p] = E.pages.splice(E.cur, 1); E.pages.splice(to, 0, p); E.cur = to;
+    m.inchide(); await salveazaOrdine(); randeazaEditor();
+  });
+}
+async function deschideDoc(id) {
+  const d = S.docs.find(x => x.id === id); if (!d) return;
+  E.docId = id; E.pages = await paginiDoc(d); E.cur = 0;
+  arata('scan');
+}
+async function stergeDoc(d) {
+  if (!d || !await confirma(`Ștergi definitiv documentul <b>${esc(d.nume)}</b> (${d.pagini.length} pagini)?`, 'Șterge definitiv', true)) return;
+  for (const id of d.pagini) { await DB.del('pages', id); elibereazaURL(id); }
+  await DB.del('docs', d.id);
+  S.docs = S.docs.filter(x => x.id !== d.id); S.sel.delete(d.id);
+  await incarcaCiorne(); arata('docs'); toast('Document șters');
+}
+
+/* ---------------- Formularul documentului ---------------- */
+function optiuniLuni(selectata) {
+  const lc = lunaCurenta(); const s = new Set([selectata, lunaAnterioara(lc, -1)]);
+  for (let k = 0; k < 13; k++) s.add(lunaAnterioara(lc, k));
+  S.docs.forEach(d => s.add(d.luna));
+  return [...s].filter(Boolean).sort().reverse().map(l => `<option value="${l}" ${l === selectata ? 'selected' : ''}>${numeLuna(l)}</option>`).join('');
+}
+function formularDoc(doc) {
+  const nou = !doc; const lc = lunaCurenta();
+  const lunaImpl = (S.ultimaLuna && S.ultimaLuna >= lunaAnterioara(lc, 2)) ? S.ultimaLuna : lc;
+  const d = doc ? { ...doc } : { elev: '', clasa: S.setari.clasa, tip: S.setari.tipuri[0], luna: lunaImpl, data: azi(), obs: '', nume: '' };
+  const elevi = S.elevi.filter(e => !e.arhivat);
+  const m = modal(`<h3>${nou ? 'Salvează documentul' : 'Detalii document'}</h3>
+    <label class="f">Elev</label><input id="mElev" list="dlElevi" value="${esc(d.elev)}" placeholder="Numele elevului" autocomplete="off">
+    <datalist id="dlElevi">${elevi.map(e => `<option value="${esc(e.nume)}">${esc(e.clasa)}</option>`).join('')}</datalist>
+    <label class="f">Clasa</label><input id="mClasa" list="dlClase" value="${esc(d.clasa)}">
+    <datalist id="dlClase">${clase().map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+    <label class="f">Tipul documentului</label><select id="mTip">${[...new Set([...S.setari.tipuri, d.tip])].map(t => `<option ${t === d.tip ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+    <label class="f">Luna (gruparea în listă)</label><select id="mLuna">${optiuniLuni(d.luna)}</select>
+    <label class="f">Data documentului</label><input id="mData" type="date" value="${esc(d.data)}">
+    <label class="f">Nume document</label><input id="mNume" value="${esc(d.nume)}" placeholder="se completează singur">
+    <label class="f">Observații</label><input id="mObs" value="${esc(d.obs)}" placeholder="ex. 3 zile, 12–14 nov.">
+    <div class="act"><button class="btn sec" data-x>Renunță</button><button class="btn" data-ok>${nou ? '💾 Salvează' : 'Salvează'}</button></div>`);
+  const el = m.el; let numeAtins = !!d.nume && !nou;
+  const numeAuto = () => `${$('#mElev', el).value.trim() || 'Fără elev'} – ${$('#mTip', el).value} – ${dataRo($('#mData', el).value)}`;
+  const actual = () => { if (!numeAtins) $('#mNume', el).value = numeAuto(); };
+  $('#mNume', el).oninput = () => { numeAtins = true; };
+  $('#mElev', el).oninput = () => { const e = elevi.find(x => norm(x.nume) === norm($('#mElev', el).value)); if (e) $('#mClasa', el).value = e.clasa; actual(); };
+  $('#mTip', el).onchange = actual; $('#mData', el).onchange = actual; actual();
+  $('[data-x]', el).onclick = m.inchide;
+  $('[data-ok]', el).onclick = async () => {
+    const elev = $('#mElev', el).value.trim();
+    if (!elev && !await confirma('Nu ai scris numele elevului. Salvezi totuși?', 'Salvează')) return;
+    const v = { elev, clasa: $('#mClasa', el).value.trim(), tip: $('#mTip', el).value, luna: $('#mLuna', el).value,
+      data: $('#mData', el).value || azi(), obs: $('#mObs', el).value.trim(), nume: $('#mNume', el).value.trim() || numeAuto() };
+    // elev nou → îl adaug în lista de elevi
+    if (elev && !S.elevi.some(e => norm(e.nume) === norm(elev))) { S.elevi.push({ id: uid(), nume: elev, clasa: v.clasa || S.setari.clasa }); await salveazaElevi(); }
+    S.ultimaLuna = v.luna; await DB.setMeta('ultimaLuna', v.luna);
+    if (nou) {
+      const nd = { id: uid(), ...v, pagini: E.pages.map(p => p.id), trimis: [], creat: Date.now(), modificat: Date.now() };
+      for (const p of E.pages) { p.docId = nd.id; await DB.put('pages', p); }
+      await DB.put('docs', nd); S.docs.push(nd);
+      E.pages = []; E.cur = 0; S.deschise.add(nd.luna);
+      m.inchide(); toast('Document salvat ✓'); arata('docs');
+    } else {
+      Object.assign(doc, v, { modificat: Date.now() }); await DB.put('docs', doc);
+      m.inchide(); toast('Salvat ✓'); randeazaEditor();
+    }
+  };
+}
+
+/* ---------------- Editorul de colțuri ---------------- */
+async function editeazaColturi(pg) {
+  await lucreaza(true, 'Se deschide…');
+  let origC;
+  try { origC = await blobInCanvas(pg.orig, 2400); } finally { await lucreaza(false); }
+  return new Promise(resolve => {
+    const ov = document.createElement('div'); ov.className = 'ce';
+    ov.innerHTML = `<div class="ce-top"><button class="btn mic sec" data-a="x">Anulează</button><span>Trage de colțuri</span><button class="btn mic" data-a="ok">Aplică</button></div>
+      <div class="ce-zona"><div class="ce-stage"><canvas class="img"></canvas><svg><polygon fill="rgba(217,130,43,.18)" stroke="#D9822B" stroke-width="2"></polygon></svg>
+      ${[0, 1, 2, 3].map(i => `<div class="h" data-i="${i}"></div>`).join('')}</div><canvas class="lupa" width="240" height="240"></canvas></div>
+      <div class="ce-jos"><button class="btn mic sec" data-a="auto">Automat</button><button class="btn mic sec" data-a="tot">Toată poza</button></div>`;
+    document.body.appendChild(ov);
+    const zona = $('.ce-zona', ov), stage = $('.ce-stage', ov), cv = $('canvas.img', ov), poly = $('polygon', ov), lupa = $('canvas.lupa', ov);
+    let col = pg.colturi.map(p => p.slice());
+    let SW = 0, SH = 0;
+    function aseaza() {
+      const zw = zona.clientWidth - 40, zh = zona.clientHeight - 40;
+      const s = Math.min(zw / origC.width, zh / origC.height);
+      SW = origC.width * s; SH = origC.height * s;
+      Object.assign(stage.style, { width: SW + 'px', height: SH + 'px', left: (zona.clientWidth - SW) / 2 + 'px', top: (zona.clientHeight - SH) / 2 + 'px' });
+      cv.width = Math.round(SW * (window.devicePixelRatio || 1)); cv.height = Math.round(SH * (window.devicePixelRatio || 1));
+      cv.getContext('2d').drawImage(origC, 0, 0, cv.width, cv.height);
+      deseneaza();
+    }
+    function deseneaza() {
+      $$('.h', ov).forEach((h, i) => { h.style.left = col[i][0] * SW + 'px'; h.style.top = col[i][1] * SH + 'px'; });
+      poly.setAttribute('points', col.map(p => `${p[0] * SW},${p[1] * SH}`).join(' '));
+    }
+    function arataLupa(i) {
+      const x = lupa.getContext('2d');
+      const cx = col[i][0] * origC.width, cy = col[i][1] * origC.height;
+      const L = Math.max(40, Math.min(origC.width, origC.height) / 10);
+      x.fillStyle = '#000'; x.fillRect(0, 0, 240, 240);
+      x.drawImage(origC, cx - L / 2, cy - L / 2, L, L, 0, 0, 240, 240);
+      x.strokeStyle = '#D9822B'; x.lineWidth = 2; x.beginPath(); x.moveTo(120, 0); x.lineTo(120, 240); x.moveTo(0, 120); x.lineTo(240, 120); x.stroke();
+      lupa.style.display = 'block';
+      lupa.style.left = (col[i][0] < 0.5 ? zona.clientWidth - 132 : 12) + 'px';
+    }
+    $$('.h', ov).forEach(h => {
+      const i = +h.dataset.i;
+      h.addEventListener('pointerdown', e => {
+        e.preventDefault(); h.setPointerCapture(e.pointerId);
+        const r0 = stage.getBoundingClientRect();
+        const ox = e.clientX - (r0.left + col[i][0] * SW), oy = e.clientY - (r0.top + col[i][1] * SH);
+        const mv = ev => {
+          const r = stage.getBoundingClientRect();
+          col[i] = [Math.min(1, Math.max(0, (ev.clientX - ox - r.left) / SW)), Math.min(1, Math.max(0, (ev.clientY - oy - r.top) / SH))];
+          deseneaza(); arataLupa(i);
+        };
+        const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); lupa.style.display = 'none'; };
+        h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+        arataLupa(i);
+      });
+    });
+    const inchide = r => { window.removeEventListener('resize', aseaza); ov.remove(); resolve(r); };
+    $('[data-a="x"]', ov).onclick = () => inchide(false);
+    $('[data-a="tot"]', ov).onclick = () => { col = COLTURI_TOT.map(p => p.slice()); deseneaza(); };
+    $('[data-a="auto"]', ov).onclick = () => { const d = detecteazaColturi(origC); col = d.colturi; deseneaza(); toast(d.sigur ? 'Margini găsite' : 'Nu sunt sigur — verifică', 2000); };
+    $('[data-a="ok"]', ov).onclick = async () => {
+      // colțurile trebuie să formeze un patrulater convex, în ordinea corectă
+      pg.colturi = ordoneazaColturi(col); pg.sigur = true;
+      await lucreaza(true, 'Îndrept pagina…');
+      try { await proceseaza(pg, origC); } finally { await lucreaza(false); }
+      inchide(true); randeazaEditor();
+    };
+    window.addEventListener('resize', aseaza);
+    requestAnimationFrame(aseaza);
+  });
+}
+
+/* =====================================================================
+   TRIMITERE (PDF / JPEG prin meniul de partajare al iPhone-ului)
+   ===================================================================== */
+async function construiesteFisiere(ids, format) {
+  const docs = ids.map(id => S.docs.find(d => d.id === id)).filter(Boolean)
+    .sort((a, b) => a.luna.localeCompare(b.luna) || (a.data || '').localeCompare(b.data || '') || a.elev.localeCompare(b.elev, 'ro'));
+  const files = [], folosite = new Set();
+  const unic = n => { let k = n, i = 2; while (folosite.has(k.toLowerCase())) k = n.replace(/(\.\w+)$/, ` (${i++})$1`); folosite.add(k.toLowerCase()); return k; };
+  if (format === 'unul') {
+    const toate = []; for (const d of docs) toate.push(...await paginiDoc(d));
+    const luni = [...new Set(docs.map(d => d.luna))];
+    const nume = docs.length === 1 ? numeFisier(docs[0]) : faraDiacritice(`Documente ${luni.length === 1 ? numeLuna(luni[0]) : azi()} (${docs.length})`);
+    files.push(new File([await pdfDinPagini(toate)], unic(nume + '.pdf'), { type: 'application/pdf' }));
+  } else {
+    for (const d of docs) {
+      const pagini = await paginiDoc(d); if (!pagini.length) continue;
+      if (format === 'pdf') files.push(new File([await pdfDinPagini(pagini)], unic(numeFisier(d) + '.pdf'), { type: 'application/pdf' }));
+      else pagini.forEach((p, i) => files.push(new File([p.final], unic(numeFisier(d) + (pagini.length > 1 ? ` - p${i + 1}` : '') + '.jpg'), { type: 'image/jpeg' })));
+    }
+  }
+  return files;
+}
+const marime = b => b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+
+function deschideTrimite(ids) {
+  if (!ids.length) return;
+  const m = modal(`<h3>Trimite ${ids.length === 1 ? 'documentul' : ids.length + ' documente'}</h3>
+    <label class="optiune"><input type="radio" name="fmt" value="pdf" checked><div><b>PDF — câte unul pe document</b><small>Cel mai bun pentru YourCatalog și WhatsApp.</small></div></label>
+    <label class="optiune"><input type="radio" name="fmt" value="unul"><div><b>Un singur PDF cu toate</b><small>Toate paginile, una după alta.</small></div></label>
+    <label class="optiune"><input type="radio" name="fmt" value="jpeg"><div><b>JPEG — câte o imagine pe pagină</b><small>Dacă platforma cere poze.</small></div></label>
+    <div class="act"><button class="btn sec" data-x>Renunță</button><button class="btn" data-ok>Pregătește</button></div>`);
+  $('[data-x]', m.el).onclick = m.inchide;
+  $('[data-ok]', m.el).onclick = async () => {
+    const fmt = $('input[name=fmt]:checked', m.el).value;
+    await lucreaza(true, 'Pregătesc fișierele…');
+    let files;
+    try { files = await construiesteFisiere(ids, fmt); } catch (e) { toast('Eroare: ' + e.message, 4000); return; } finally { await lucreaza(false); }
+    m.inchide();
+    fereastraFisiere(files, 'Fișiere pregătite', async () => {
+      const la = new Date().toISOString();
+      for (const id of ids) { const d = S.docs.find(x => x.id === id); if (d) { d.trimis.push({ la, format: fmt }); await DB.put('docs', d); } }
+      S.sel.clear(); if (S.view === 'docs') randeazaDocs(); actualizeazaSelbar();
+    }, `Pentru <b>YourCatalog</b>: alege „Salvează în Fișiere”, apoi în YourCatalog încarci din Fișiere.`);
+  };
+}
+/* Pas 2: butonul care deschide meniul de partajare (trebuie apăsat de tine — regula Safari) */
+function fereastraFisiere(files, titlu, laTrimis, nota = '') {
+  const total = files.reduce((s, f) => s + f.size, 0);
+  const poate = !!(navigator.canShare && navigator.canShare({ files }));
+  const m = modal(`<h3>${titlu}</h3>
+    <p>${files.length} ${files.length === 1 ? 'fișier' : 'fișiere'} · ${marime(total)}</p>
+    <div class="fis">${files.map(f => esc(f.name)).join('<br>')}</div>
+    ${nota ? `<p class="muted" style="font-size:13.5px">${nota}</p>` : ''}
+    <div id="desc"></div>
+    <div class="act"><button class="btn sec" data-x>Închide</button>${poate ? `<button class="btn" data-s>📤 Trimite</button>` : `<button class="btn" data-d>⬇ Descarcă</button>`}</div>`);
+  $('[data-x]', m.el).onclick = m.inchide;
+  if (poate) $('[data-s]', m.el).onclick = async () => {
+    try { await navigator.share({ files, title: titlu }); m.inchide(); toast('Trimis ✓'); laTrimis && laTrimis(); }
+    catch (e) { if (e.name !== 'AbortError') toast('Nu s-a putut trimite: ' + e.message, 4000); }
+  };
+  else $('[data-d]', m.el).onclick = () => {
+    files.forEach((f, i) => setTimeout(() => { const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); }, i * 400));
+    toast('Descărcare pornită'); laTrimis && laTrimis(); m.inchide();
+  };
+}
+
+/* =====================================================================
+   BACKUP (fișier JSON → Google Drive prin meniul de partajare)
+   ===================================================================== */
+const blobInDataURL = b => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(b); });
+function dataURLInBlob(u) {
+  const [cap, b64] = u.split(','); const tip = (cap.match(/data:([^;]+)/) || [])[1] || 'image/jpeg';
+  const bin = atob(b64); const a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return new Blob([a], { type: tip });
+}
+async function pregatesteBackup(luna) {
+  const docs = S.docs.filter(d => !luna || d.luna === luna);
+  if (!docs.length) { toast('Nu există documente de salvat.'); return; }
+  await lucreaza(true, 'Pregătesc backup-ul…');
+  try {
+    const parti = [`{"app":"scanare-documente","versiune":1,"exportat":${JSON.stringify(new Date().toISOString())},"luna":${JSON.stringify(luna)},"elevi":${JSON.stringify(S.elevi)},"setari":${JSON.stringify(S.setari)},"docs":${JSON.stringify(docs)},"pages":[`];
+    let primul = true;
+    for (const d of docs) for (const p of await paginiDoc(d)) {
+      parti.push((primul ? '' : ',') + JSON.stringify({ id: p.id, docId: p.docId, fw: p.fw, fh: p.fh, final: await blobInDataURL(p.final) }));
+      primul = false;
+    }
+    parti.push(']}');
+    const nume = `scanare-backup-${luna ? luna + '-' : ''}${azi()}.json`;
+    const f = new File(parti, nume, { type: 'application/json' });
+    await lucreaza(false);
+    fereastraFisiere([f], 'Backup pregătit', async () => {
+      if (!luna) { S.lastBackup = Date.now(); await DB.setMeta('lastBackup', S.lastBackup); }
+      if (S.view === 'setari') randeazaSetari();
+    }, 'Apasă <b>Trimite</b> și alege <b>Drive</b> (sau „Salvează în Fișiere” → Google Drive). Backup-ul conține paginile finale; restaurarea se face din Setări.');
+  } catch (e) { await lucreaza(false); toast('Eroare la backup: ' + e.message, 4000); }
+}
+$('#inBackup').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  await lucreaza(true, 'Restaurez…');
+  try {
+    const j = JSON.parse(await f.text());
+    if (j.app !== 'scanare-documente') throw new Error('Fișierul nu este un backup al acestei aplicații.');
+    let nd = 0, np = 0;
+    for (const e2 of j.elevi || []) if (!S.elevi.some(x => x.id === e2.id || norm(x.nume) === norm(e2.nume))) S.elevi.push(e2);
+    await salveazaElevi();
+    for (const p of j.pages || []) {
+      if (await DB.get('pages', p.id)) continue;
+      const blob = dataURLInBlob(p.final); const c = await blobInCanvas(blob, 4000);
+      await DB.put('pages', { id: p.id, docId: p.docId, creat: Date.now(), orig: blob, ow: c.width, oh: c.height, colturi: COLTURI_TOT.map(x => x.slice()),
+        sigur: true, filtru: 'original', rot: 0, final: blob, fw: p.fw || c.width, fh: p.fh || c.height, thumb: await canvasInBlob(miniatura(c, 320), 0.75) });
+      np++;
+    }
+    for (const d of j.docs || []) {
+      const ex = S.docs.find(x => x.id === d.id);
+      if (!ex) { await DB.put('docs', d); nd++; }
+      else if ((d.modificat || 0) > (ex.modificat || 0)) await DB.put('docs', d);
+    }
+    await incarcaTot(); await lucreaza(false);
+    toast(`Restaurat: ${nd} documente noi, ${np} pagini.`, 4000); arata('docs');
+  } catch (err) { await lucreaza(false); toast('Restaurare eșuată: ' + err.message, 5000); }
+};
+
+/* =====================================================================
+   ELEVI
+   ===================================================================== */
+function randeazaElevi() {
+  const V = $('#v-elevi');
+  const pe = {}; S.elevi.filter(e => !e.arhivat).forEach(e => (pe[e.clasa] = pe[e.clasa] || []).push(e));
+  const arh = S.elevi.filter(e => e.arhivat);
+  const nrDoc = n => S.docs.filter(d => norm(d.elev) === norm(n)).length;
+  V.innerHTML = `
+    <div class="card">
+      <label class="f" style="margin-top:0">Adaugă elevi (câte unul pe rând)</label>
+      <textarea id="eNoi" placeholder="Popescu Ion&#10;Ionescu Maria"></textarea>
+      <label class="f">Clasa</label><input id="eClasa" value="${esc(S.setari.clasa)}" list="dlCl2"><datalist id="dlCl2">${clase().map(c => `<option value="${esc(c)}">`).join('')}</datalist>
+      <button class="btn lat" id="eAdauga" style="margin-top:10px">Adaugă</button>
+    </div>
+    ${Object.keys(pe).sort((a, b) => a.localeCompare(b, 'ro')).map(c => `<h2>Clasa ${esc(c)} · ${pe[c].length}</h2><div class="card">
+      ${pe[c].sort((a, b) => a.nume.localeCompare(b.nume, 'ro')).map(e => `<div class="elev"><div class="n"><b>${esc(e.nume)}</b><small class="muted">${nrDoc(e.nume)} documente</small></div>
+        <button data-vd="${e.id}">Documente</button><button data-ed="${e.id}">✎</button><button data-ar="${e.id}">Arhivează</button></div>`).join('')}</div>`).join('')
+      || '<div class="gol">Nu ai încă elevi în listă. Îi adaugi aici sau se adaugă singuri când salvezi un document.</div>'}
+    ${arh.length ? `<h2>Arhivați · ${arh.length}</h2><div class="card">${arh.map(e => `<div class="elev"><div class="n"><b>${esc(e.nume)}</b><small class="muted">${esc(e.clasa)}</small></div><button data-re="${e.id}">Reactivează</button></div>`).join('')}</div>` : ''}`;
+  $('#eAdauga').onclick = async () => {
+    const clasa = $('#eClasa').value.trim() || S.setari.clasa; let k = 0;
+    for (const n of $('#eNoi').value.split('\n').map(s => s.trim()).filter(Boolean)) {
+      if (S.elevi.some(e => norm(e.nume) === norm(n))) continue;
+      S.elevi.push({ id: uid(), nume: n, clasa }); k++;
+    }
+    await salveazaElevi(); toast(`${k} elevi adăugați`); randeazaElevi();
+  };
+  const gaseste = id => S.elevi.find(e => e.id === id);
+  $$('[data-vd]', V).forEach(b => b.onclick = () => { F.q = gaseste(b.dataset.vd).nume; $('#q').value = F.q; arata('docs'); });
+  $$('[data-ar]', V).forEach(b => b.onclick = async () => { gaseste(b.dataset.ar).arhivat = true; await salveazaElevi(); randeazaElevi(); });
+  $$('[data-re]', V).forEach(b => b.onclick = async () => { gaseste(b.dataset.re).arhivat = false; await salveazaElevi(); randeazaElevi(); });
+  $$('[data-ed]', V).forEach(b => b.onclick = () => {
+    const e = gaseste(b.dataset.ed);
+    const m = modal(`<h3>Modifică elevul</h3><label class="f">Nume</label><input id="xn" value="${esc(e.nume)}"><label class="f">Clasa</label><input id="xc" value="${esc(e.clasa)}">
+      <p class="muted" style="font-size:13px">Numele se schimbă și pe documentele lui deja salvate.</p>
+      <div class="act"><button class="btn sec" data-x>Renunță</button><button class="btn" data-ok>Salvează</button></div>`);
+    $('[data-x]', m.el).onclick = m.inchide;
+    $('[data-ok]', m.el).onclick = async () => {
+      const vechi = e.nume; e.nume = $('#xn', m.el).value.trim() || vechi; e.clasa = $('#xc', m.el).value.trim() || e.clasa;
+      for (const d of S.docs) if (norm(d.elev) === norm(vechi)) { d.elev = e.nume; d.nume = d.nume.replace(vechi, e.nume); d.modificat = Date.now(); await DB.put('docs', d); }
+      await salveazaElevi(); m.inchide(); randeazaElevi();
+    };
+  });
+}
+
+/* =====================================================================
+   SETĂRI
+   ===================================================================== */
+async function randeazaSetari() {
+  const V = $('#v-setari'); const st = S.setari;
+  let spatiu = '';
+  try { if (navigator.storage?.estimate) { const e = await navigator.storage.estimate(); spatiu = `Spațiu folosit: ${marime(e.usage || 0)}`; } } catch (_) {}
+  let pers = false; try { pers = navigator.storage?.persisted ? await navigator.storage.persisted() : false; } catch (_) {}
+  const luni = [...new Set(S.docs.map(d => d.luna))].sort().reverse();
+  V.innerHTML = `
+    <h2>Scanare</h2>
+    <div class="card">
+      <label class="f" style="margin-top:0">Filtru implicit</label>
+      <select id="sFiltru">${FILTRE.map(([k, t]) => `<option value="${k}" ${st.filtru === k ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <label class="f">Proporția paginii îndreptate</label>
+      <select id="sProp"><option value="auto" ${st.proportie === 'auto' ? 'selected' : ''}>Automată (după foaie)</option><option value="a4" ${st.proportie === 'a4' ? 'selected' : ''}>Forțată A4</option></select>
+      <label class="f">Calitatea imaginii</label>
+      <select id="sCal"><option value="0.75" ${st.calitate <= 0.76 ? 'selected' : ''}>Fișiere mici</option><option value="0.82" ${st.calitate > 0.76 && st.calitate < 0.88 ? 'selected' : ''}>Normală</option><option value="0.9" ${st.calitate >= 0.88 ? 'selected' : ''}>Ridicată</option></select>
+      <label class="f">Clasa implicită</label><input id="sClasa" value="${esc(st.clasa)}">
+      <label class="f">Tipuri de documente (câte unul pe rând)</label><textarea id="sTipuri" style="min-height:140px">${esc(st.tipuri.join('\n'))}</textarea>
+      <button class="btn lat" id="sSalv" style="margin-top:10px">Salvează setările</button>
+    </div>
+    <h2>Backup în Drive</h2>
+    <div class="card">
+      <p style="margin-top:0">Ultimul backup complet: <b>${S.lastBackup ? new Date(S.lastBackup).toLocaleString('ro-RO') : 'niciodată'}</b></p>
+      <button class="btn lat" id="bkTot">☁ Backup complet</button>
+      <label class="f">sau doar o lună</label>
+      <div class="rand"><select id="bkLuna" style="flex:2">${luni.map(l => `<option value="${l}">${numeLuna(l)}</option>`).join('') || '<option value="">—</option>'}</select><button class="btn sec" id="bkL" style="flex:1">Backup lună</button></div>
+      <button class="btn sec lat" id="bkRest" style="margin-top:12px">⤓ Restaurează din backup</button>
+      <p class="muted" style="font-size:13px">Restaurarea adaugă doar ce lipsește; nu dublează și nu șterge nimic.</p>
+    </div>
+    <h2>Stocare</h2>
+    <div class="card"><p style="margin:0">${spatiu}<br>Stocare protejată de ștergere: <b>${pers ? 'da' : 'nu (adaugă aplicația pe ecranul principal)'}</b><br>Documente: ${S.docs.length} · Elevi: ${S.elevi.length}</p></div>
+    <div class="autor">Scanare documente · versiunea ${VERSIUNE}<br>Concept: prof. Daniel Botezatu · realizată cu asistență AI (Claude)<br>Datele rămân doar pe telefonul tău.</div>`;
+  $('#sSalv').onclick = async () => {
+    st.filtru = $('#sFiltru').value; st.proportie = $('#sProp').value; st.calitate = +$('#sCal').value;
+    st.clasa = $('#sClasa').value.trim() || 'X F';
+    const t = $('#sTipuri').value.split('\n').map(s => s.trim()).filter(Boolean); if (t.length) st.tipuri = t;
+    await salveazaSetari(); toast('Setări salvate ✓');
+  };
+  $('#bkTot').onclick = () => pregatesteBackup(null);
+  $('#bkL').onclick = () => { const l = $('#bkLuna').value; if (l) pregatesteBackup(l); };
+  $('#bkRest').onclick = () => $('#inBackup').click();
+}
+
+/* =====================================================================
+   PORNIRE
+   ===================================================================== */
+(async function porneste() {
+  try {
+    await DB.open();
+    await incarcaTot();
+    await incarcaCiorne();
+    try { if (navigator.storage?.persist) await navigator.storage.persist(); } catch (_) {}
+    arata(E.pages.length ? 'scan' : 'docs');
+    if (E.pages.length) toast(`Ai ${E.pages.length} pagini scanate nesalvate.`, 3500);
+  } catch (e) {
+    document.querySelector('main').innerHTML = `<div class="gol"><b>Aplicația nu poate salva date în acest browser.</b><br>${esc(e.message || e)}<br>Deschide-o în Safari (nu în modul privat).</div>`;
+  }
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('service-worker.js').catch(() => {});
+})();
+</script>
+</body>
+</html>
