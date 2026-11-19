@@ -130,7 +130,7 @@ small{font-size:12.5px}
 .modal{background:#fff;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch;border-radius:16px 16px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
 @media(min-width:600px){.fundal{align-items:center}.modal{border-radius:16px}}
 .modal h3{font-family:Oswald,sans-serif;text-transform:uppercase;font-size:18px;margin:0 0 8px;color:var(--infield);font-weight:600}
-.modal .act{display:flex;gap:8px;margin-top:16px}
+.modal .act{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
 .modal .act .btn{flex:1}
 .optiune{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:8px}
 .optiune input{width:22px;height:22px;margin-top:1px;-webkit-appearance:auto;appearance:auto;accent-color:var(--track);flex:none}
@@ -212,7 +212,7 @@ small{font-size:12.5px}
    Concept: prof. Daniel Botezatu · realizată cu asistență AI (Claude)
    Toate datele stau pe telefon (IndexedDB). Backup: fișier JSON → Drive.
    ===================================================================== */
-const VERSIUNE = '1.5';
+const VERSIUNE = '1.6';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -1193,13 +1193,31 @@ function deschideTrimite(ids) {
 function fereastraFisiere(files, titlu, laTrimis, nota = '') {
   const total = files.reduce((s, f) => s + f.size, 0);
   const poate = !!(navigator.canShare && navigator.canShare({ files }));
+  const areFS = 'showSaveFilePicker' in window && 'showDirectoryPicker' in window && !/iPhone|iPad|iPod/.test(navigator.userAgent);
   const m = modal(`<h3>${titlu}</h3>
     <p>${files.length} ${files.length === 1 ? 'fișier' : 'fișiere'} · ${marime(total)}</p>
     <div class="fis">${files.map(f => esc(f.name)).join('<br>')}</div>
     ${nota ? `<p class="muted" style="font-size:13.5px">${nota}</p>` : ''}
     <div id="desc"></div>
-    <div class="act"><button class="btn sec" data-x>Închide</button><button class="btn ${poate ? 'sec' : ''}" data-d>⬇ Descarcă</button>${poate ? `<button class="btn" data-s>📤 Trimite</button>` : ''}</div>`);
+    <div class="act"><button class="btn sec" data-x>Închide</button>${areFS ? `<button class="btn" data-f>📁 Salvează în folder…</button>` : ''}<button class="btn ${poate || areFS ? 'sec' : ''}" data-d>⬇ Descarcă</button>${poate ? `<button class="btn ${areFS ? 'sec' : ''}" data-s>📤 Trimite</button>` : ''}</div>
+    ${areFS ? `<p class="muted" style="font-size:13px;margin:8px 0 0">„Salvează în folder” te lasă să alegi unde se salvează (Desktop, un folder de pe laptop, Drive pentru computer). Data viitoare se deschide în același loc.</p>` : ''}`);
   $('[data-x]', m.el).onclick = m.inchide;
+  if (areFS) $('[data-f]', m.el).onclick = async () => {
+    const scrie = async (h, f) => { const w = await h.createWritable(); await w.write(f); await w.close(); };
+    try {
+      if (files.length === 1) {
+        const f = files[0], ext = (f.name.match(/\.(\w+)$/) || [, 'bin'])[1];
+        const h = await window.showSaveFilePicker({ id: 'scanare', suggestedName: f.name, types: [{ description: ext.toUpperCase(), accept: { [f.type || 'application/octet-stream']: ['.' + ext] } }] });
+        await scrie(h, f);
+        toast('Salvat: ' + h.name, 3500);
+      } else {
+        const d = await window.showDirectoryPicker({ id: 'scanare', mode: 'readwrite' });
+        for (const f of files) await scrie(await d.getFileHandle(f.name, { create: true }), f);
+        toast(files.length + ' fișiere salvate în „' + d.name + '”', 3500);
+      }
+      m.inchide(); laTrimis && laTrimis();
+    } catch (e) { if (e.name !== 'AbortError') toast('Nu s-a putut salva: ' + e.message, 4500); }
+  };
   if (poate) $('[data-s]', m.el).onclick = async () => {
     try { await navigator.share({ files, title: titlu }); m.inchide(); toast('Trimis ✓'); laTrimis && laTrimis(); }
     catch (e) { if (e.name !== 'AbortError') toast('Nu s-a putut trimite: ' + e.message, 4000); }
