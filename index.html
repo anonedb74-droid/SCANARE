@@ -84,6 +84,12 @@ small{font-size:12.5px}
 .doc .info .l2{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tip{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;background:#E6ECF4;color:var(--infield);margin-top:3px}
 .trimis{display:inline-block;font-size:11.5px;color:var(--ok);font-weight:600;margin-left:6px}
+.doc .gata{flex:none;width:44px;height:44px;border-radius:50%;border:2px solid var(--border);background:#fff;color:transparent;font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0}
+.doc.rezolvat{border-left:5px solid var(--ok)}
+.doc.rezolvat .gata{background:var(--ok);border-color:var(--ok);color:#fff}
+.doc.rezolvat .info b{color:var(--ok)}
+.eticheta-gata{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;background:#E3F2E8;color:var(--ok);margin:3px 0 0 6px}
+.filtre .lat{grid-column:1 / -1}
 .selbar{position:fixed;left:0;right:0;bottom:calc(62px + env(safe-area-inset-bottom));z-index:29;background:var(--infield);color:#fff;display:none;align-items:center;gap:8px;padding:10px 12px}
 .selbar.vizibil{display:flex}
 .selbar span{flex:1;font-weight:600}
@@ -171,6 +177,7 @@ small{font-size:12.5px}
     <div class="filtre">
       <select id="fTip"></select>
       <select id="fClasa"></select>
+      <select id="fGata" class="lat"><option value="">Toate documentele</option><option value="nu">○ Doar cele nebifate (de rezolvat)</option><option value="da">✓ Doar cele bifate (rezolvate)</option></select>
     </div>
     <div id="lista"></div>
   </section>
@@ -188,6 +195,7 @@ small{font-size:12.5px}
 <div class="selbar" id="selbar">
   <span id="selnr">0 bifate</span>
   <button class="btn sec" id="selAnul">Anulează</button>
+  <button class="btn sec" id="selGata">✓ Rezolvate</button>
   <button class="btn" id="selTrimite">Trimite</button>
 </div>
 
@@ -212,7 +220,7 @@ small{font-size:12.5px}
    Concept: prof. Daniel Botezatu · realizată cu asistență AI (Claude)
    Toate datele stau pe telefon (IndexedDB). Backup: fișier JSON → Drive.
    ===================================================================== */
-const VERSIUNE = '1.6';
+const VERSIUNE = '1.7';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -792,17 +800,25 @@ function confirma(text, da = 'Da', periculos = false) {
 /* =====================================================================
    DOCUMENTE (grupate pe luni)
    ===================================================================== */
-const F = { q: '', tip: '', clasa: '' };
+const F = { q: '', tip: '', clasa: '', gata: '' };
 $('#q').addEventListener('input', e => { F.q = e.target.value; randeazaLista(); });
 $('#fTip').addEventListener('change', e => { F.tip = e.target.value; randeazaLista(); });
 $('#fClasa').addEventListener('change', e => { F.clasa = e.target.value; randeazaLista(); });
+$('#fGata').addEventListener('change', e => { F.gata = e.target.value; randeazaLista(); });
+/* Bifa permanentă „rezolvat” (✓): rămâne salvată și se sincronizează. Nu e același lucru cu bifa de selecție pentru trimis. */
+async function seteazaGata(ids, val) {
+  const la = val ? new Date().toISOString() : null;
+  for (const id of ids) { const d = S.docs.find(x => x.id === id); if (d && !!d.gata !== val) { d.gata = la; d.modificat = Date.now(); await DB.put('docs', d); } }
+}
 
 function randeazaDocs() {
   $('#fTip').innerHTML = `<option value="">Toate tipurile</option>` + [...new Set([...S.setari.tipuri, ...S.docs.map(d => d.tip)])].map(t => `<option ${t === F.tip ? 'selected' : ''}>${esc(t)}</option>`).join('');
   $('#fClasa').innerHTML = `<option value="">Toate clasele</option>` + clase().map(c => `<option ${c === F.clasa ? 'selected' : ''}>${esc(c)}</option>`).join('');
   const lc = lunaCurenta(), dl = S.docs.filter(d => d.luna === lc);
-  const netrimise = dl.filter(d => !d.trimis.length).length;
-  $('#stat').innerHTML = `<div><b>${dl.length}</b><span>${esc(numeLuna(lc))}</span></div><div><b>${netrimise}</b><span>netrimise luna asta</span></div><div><b>${S.docs.length}</b><span>în total</span></div>`;
+  const nerez = S.docs.filter(d => !d.gata).length;
+  $('#stat').innerHTML = `<div><b>${dl.length}</b><span>${esc(numeLuna(lc))}</span></div><div id="statNerez" style="cursor:pointer"><b style="color:${nerez ? 'var(--danger)' : 'var(--ok)'}">${nerez}</b><span>de rezolvat (○)</span></div><div><b>${S.docs.length}</b><span>în total</span></div>`;
+  $('#statNerez').onclick = () => { F.gata = F.gata === 'nu' ? '' : 'nu'; $('#fGata').value = F.gata; randeazaLista(); };
+  $('#fGata').value = F.gata;
   const zile = S.lastBackup ? Math.floor((Date.now() - S.lastBackup) / 864e5) : null;
   $('#bannerBackup').innerHTML = (S.docs.length && (zile === null || zile >= 7))
     ? `<div class="banner"><div style="flex:1">${zile === null ? 'Nu ai făcut încă un backup.' : `Ultimul backup: acum ${zile} zile.`} Salvează o copie în Drive.</div><button class="btn mic" id="bkAcum">Backup</button></div>` : '';
@@ -812,6 +828,8 @@ function randeazaDocs() {
 function potriveste(d) {
   if (F.tip && d.tip !== F.tip) return false;
   if (F.clasa && d.clasa !== F.clasa) return false;
+  if (F.gata === 'da' && !d.gata) return false;
+  if (F.gata === 'nu' && d.gata) return false;
   if (F.q) {
     const t = norm([d.nume, d.elev, d.tip, d.clasa, d.obs, numeLuna(d.luna), dataRo(d.data)].join(' '));
     return norm(F.q).split(/\s+/).every(c => t.includes(c));
@@ -826,7 +844,7 @@ function randeazaLista() {
   }
   const filtrate = S.docs.filter(potriveste);
   if (!filtrate.length) { L.innerHTML = `<div class="gol">Nimic găsit pentru căutarea asta.</div>`; return; }
-  const cautare = !!(F.q || F.tip || F.clasa);
+  const cautare = !!(F.q || F.tip || F.clasa || F.gata);
   const grupe = {};
   filtrate.forEach(d => (grupe[d.luna] = grupe[d.luna] || []).push(d));
   const luni = Object.keys(grupe).sort().reverse();
@@ -837,7 +855,7 @@ function randeazaLista() {
     return `<div class="luna" data-l="${l}">
       <div class="luna-cap">
         <button class="tg" data-tg="${l}">${deschis ? '▾' : '▸'}</button>
-        <h3 data-tg="${l}">${esc(numeLuna(l))}</h3><span class="nr">${lista.length} doc.</span>
+        <h3 data-tg="${l}">${esc(numeLuna(l))}</h3><span class="nr">${lista.length} doc. · ✓ ${lista.filter(d => d.gata).length}</span>
         <button class="bif" data-bl="${l}">${toateBif ? 'Debifează' : 'Bifează luna'}</button>
       </div>
       ${deschis ? lista.map(randDoc).join('') : ''}
@@ -853,19 +871,26 @@ function randeazaLista() {
     const id = el.dataset.id;
     $('input', el).onchange = e => { e.target.checked ? S.sel.add(id) : S.sel.delete(id); el.classList.toggle('bifat', e.target.checked); actualizeazaSelbar(); };
     $('.chk', el).onclick = e => e.stopPropagation();
+    $('.gata', el).onclick = async e => {
+      e.stopPropagation();
+      const d = S.docs.find(x => x.id === id); const val = !d.gata;
+      await seteazaGata([id], val);
+      toast(val ? '✓ Bifat ca rezolvat' : 'Debifat — de rezolvat'); randeazaDocs();
+    };
     el.onclick = () => deschideDoc(id);
   });
   incarcaMiniaturi();
 }
 function randDoc(d) {
   const ult = d.trimis[d.trimis.length - 1];
-  return `<div class="doc ${S.sel.has(d.id) ? 'bifat' : ''}" data-id="${d.id}">
+  return `<div class="doc ${S.sel.has(d.id) ? 'bifat' : ''} ${d.gata ? 'rezolvat' : ''}" data-id="${d.id}">
     <label class="chk"><input type="checkbox" ${S.sel.has(d.id) ? 'checked' : ''}></label>
     <img data-thumb="${d.pagini[0] || ''}" alt="">
     <div class="info"><b>${esc(d.elev || d.nume)}</b>
       <div class="l2">${esc(dataRo(d.data))} · ${esc(d.clasa)} · ${d.pagini.length} pag.${d.obs ? ' · ' + esc(d.obs) : ''}</div>
-      <span class="tip">${esc(d.tip)}</span>${ult ? `<span class="trimis">✓ trimis ${esc(dataRo(ult.la.slice(0, 10)).slice(0, 5))}</span>` : ''}
-    </div></div>`;
+      <span class="tip">${esc(d.tip)}</span>${ult ? `<span class="trimis">✓ trimis ${esc(dataRo(ult.la.slice(0, 10)).slice(0, 5))}</span>` : ''}${d.gata ? `<span class="eticheta-gata">✓ rezolvat ${esc(dataRo(d.gata.slice(0, 10)).slice(0, 5))}</span>` : ''}
+    </div>
+    <button class="gata" title="Bifează ca rezolvat" aria-label="Rezolvat">✓</button></div>`;
 }
 async function incarcaMiniaturi() {
   for (const img of $$('img[data-thumb]')) {
@@ -880,6 +905,12 @@ function actualizeazaSelbar() {
 }
 $('#selAnul').onclick = () => { S.sel.clear(); randeazaLista(); actualizeazaSelbar(); };
 $('#selTrimite').onclick = () => deschideTrimite([...S.sel]);
+$('#selGata').onclick = async () => {
+  const ids = [...S.sel]; const toate = ids.every(id => S.docs.find(d => d.id === id)?.gata);
+  await seteazaGata(ids, !toate);
+  toast(toate ? `${ids.length} debifate` : `✓ ${ids.length} bifate ca rezolvate`);
+  S.sel.clear(); randeazaDocs(); actualizeazaSelbar();
+};
 
 /* =====================================================================
    EDITOR (scanare + pagini)
@@ -1291,7 +1322,7 @@ function randeazaElevi() {
   const V = $('#v-elevi');
   const pe = {}; S.elevi.filter(e => !e.arhivat).forEach(e => (pe[e.clasa] = pe[e.clasa] || []).push(e));
   const arh = S.elevi.filter(e => e.arhivat);
-  const nrDoc = n => S.docs.filter(d => norm(d.elev) === norm(n)).length;
+  const nrDoc = n => { const t = S.docs.filter(d => norm(d.elev) === norm(n)); const g = t.filter(d => d.gata).length; return t.length ? `${t.length} doc. · ✓ ${g}${g < t.length ? ` · <span style="color:var(--danger)">○ ${t.length - g}</span>` : ''}` : '0 documente'; };
   V.innerHTML = `
     <div class="card">
       <label class="f" style="margin-top:0">Adaugă elevi (câte unul pe rând)</label>
@@ -1300,7 +1331,7 @@ function randeazaElevi() {
       <button class="btn lat" id="eAdauga" style="margin-top:10px">Adaugă</button>
     </div>
     ${Object.keys(pe).sort((a, b) => a.localeCompare(b, 'ro')).map(c => `<h2>Clasa ${esc(c)} · ${pe[c].length}</h2><div class="card">
-      ${pe[c].sort((a, b) => a.nume.localeCompare(b.nume, 'ro')).map(e => `<div class="elev"><div class="n"><b>${esc(e.nume)}</b><small class="muted">${nrDoc(e.nume)} documente</small></div>
+      ${pe[c].sort((a, b) => a.nume.localeCompare(b.nume, 'ro')).map(e => `<div class="elev"><div class="n"><b>${esc(e.nume)}</b><small class="muted">${nrDoc(e.nume)}</small></div>
         <button data-vd="${e.id}">Documente</button><button data-ed="${e.id}">✎</button><button data-ar="${e.id}">Arhivează</button></div>`).join('')}</div>`).join('')
       || '<div class="gol">Nu ai încă elevi în listă. Îi adaugi aici sau se adaugă singuri când salvezi un document.</div>'}
     ${arh.length ? `<h2>Arhivați · ${arh.length}</h2><div class="card">${arh.map(e => `<div class="elev"><div class="n"><b>${esc(e.nume)}</b><small class="muted">${esc(e.clasa)}</small></div><button data-re="${e.id}">Reactivează</button><button data-sg="${e.id}" style="color:var(--danger)">Șterge</button></div>`).join('')}</div>` : ''}`;
