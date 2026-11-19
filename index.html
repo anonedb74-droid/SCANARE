@@ -212,7 +212,7 @@ small{font-size:12.5px}
    Concept: prof. Daniel Botezatu · realizată cu asistență AI (Claude)
    Toate datele stau pe telefon (IndexedDB). Backup: fișier JSON → Drive.
    ===================================================================== */
-const VERSIUNE = '1.4';
+const VERSIUNE = '1.5';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -1285,7 +1285,7 @@ function randeazaElevi() {
       ${pe[c].sort((a, b) => a.nume.localeCompare(b.nume, 'ro')).map(e => `<div class="elev"><div class="n"><b>${esc(e.nume)}</b><small class="muted">${nrDoc(e.nume)} documente</small></div>
         <button data-vd="${e.id}">Documente</button><button data-ed="${e.id}">✎</button><button data-ar="${e.id}">Arhivează</button></div>`).join('')}</div>`).join('')
       || '<div class="gol">Nu ai încă elevi în listă. Îi adaugi aici sau se adaugă singuri când salvezi un document.</div>'}
-    ${arh.length ? `<h2>Arhivați · ${arh.length}</h2><div class="card">${arh.map(e => `<div class="elev"><div class="n"><b>${esc(e.nume)}</b><small class="muted">${esc(e.clasa)}</small></div><button data-re="${e.id}">Reactivează</button></div>`).join('')}</div>` : ''}`;
+    ${arh.length ? `<h2>Arhivați · ${arh.length}</h2><div class="card">${arh.map(e => `<div class="elev"><div class="n"><b>${esc(e.nume)}</b><small class="muted">${esc(e.clasa)}</small></div><button data-re="${e.id}">Reactivează</button><button data-sg="${e.id}" style="color:var(--danger)">Șterge</button></div>`).join('')}</div>` : ''}`;
   $('#eAdauga').onclick = async () => {
     const clasa = $('#eClasa').value.trim() || S.setari.clasa; let k = 0;
     for (const n of $('#eNoi').value.split('\n').map(s => s.trim()).filter(Boolean)) {
@@ -1297,19 +1297,34 @@ function randeazaElevi() {
   const gaseste = id => S.elevi.find(e => e.id === id);
   $$('[data-vd]', V).forEach(b => b.onclick = () => { F.q = gaseste(b.dataset.vd).nume; $('#q').value = F.q; arata('docs'); });
   $$('[data-ar]', V).forEach(b => b.onclick = async () => { gaseste(b.dataset.ar).arhivat = true; await salveazaElevi(); randeazaElevi(); });
+  $$('[data-sg]', V).forEach(b => b.onclick = () => stergeElev(gaseste(b.dataset.sg)));
   $$('[data-re]', V).forEach(b => b.onclick = async () => { gaseste(b.dataset.re).arhivat = false; await salveazaElevi(); randeazaElevi(); });
   $$('[data-ed]', V).forEach(b => b.onclick = () => {
     const e = gaseste(b.dataset.ed);
     const m = modal(`<h3>Modifică elevul</h3><label class="f">Nume</label><input id="xn" value="${esc(e.nume)}"><label class="f">Clasa</label><input id="xc" value="${esc(e.clasa)}">
       <p class="muted" style="font-size:13px">Numele se schimbă și pe documentele lui deja salvate.</p>
-      <div class="act"><button class="btn sec" data-x>Renunță</button><button class="btn" data-ok>Salvează</button></div>`);
+      <div class="act"><button class="btn sec" data-x>Renunță</button><button class="btn" data-ok>Salvează</button></div>
+      <button class="btn rosu lat" data-sterge style="margin-top:14px">🗑 Șterge elevul din listă</button>`);
     $('[data-x]', m.el).onclick = m.inchide;
+    $('[data-sterge]', m.el).onclick = () => { m.inchide(); stergeElev(e); };
     $('[data-ok]', m.el).onclick = async () => {
       const vechi = e.nume; e.nume = $('#xn', m.el).value.trim() || vechi; e.clasa = $('#xc', m.el).value.trim() || e.clasa;
       for (const d of S.docs) if (norm(d.elev) === norm(vechi)) { d.elev = e.nume; d.nume = d.nume.replace(vechi, e.nume); d.modificat = Date.now(); await DB.put('docs', d); }
       await salveazaElevi(); m.inchide(); randeazaElevi();
     };
   });
+}
+
+/* Șterge elevul din listă. Documentele lui NU se șterg: rămân în Documente, cu numele scris pe ele. */
+async function stergeElev(e) {
+  if (!e) return;
+  const n = S.docs.filter(d => norm(d.elev) === norm(e.nume)).length;
+  const text = `Ștergi elevul <b>${esc(e.nume)}</b> din listă?` + (n
+    ? `<br><br>Cele <b>${n} documente</b> ale lui <b>nu se șterg</b>: rămân în Documente, cu numele lui scris pe ele. Dacă salvezi un document nou cu acest nume, elevul reapare în listă.`
+    : '');
+  if (!await confirma(text, 'Șterge elevul', true)) return;
+  S.elevi = S.elevi.filter(x => x.id !== e.id);
+  await salveazaElevi(); toast('Elev șters din listă'); randeazaElevi();
 }
 
 /* =====================================================================
