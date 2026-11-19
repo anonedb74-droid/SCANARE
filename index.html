@@ -220,7 +220,7 @@ small{font-size:12.5px}
    Concept: prof. Daniel Botezatu · realizată cu asistență AI (Claude)
    Toate datele stau pe telefon (IndexedDB). Backup: fișier JSON → Drive.
    ===================================================================== */
-const VERSIUNE = '1.7';
+const VERSIUNE = '1.8';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -237,7 +237,7 @@ const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0
 function lunaAnterioara(l, k = 1) { let [y, m] = l.split('-').map(Number); m -= k; while (m < 1) { m += 12; y--; } while (m > 12) { m -= 12; y++; } return `${y}-${pad(m)}`; }
 
 const SETARI_IMPLICITE = {
-  filtru: 'curat',          // curat | gri | an | original
+  filtru: 'original',       // curat | gri | an | original
   proportie: 'auto',        // auto | a4
   calitate: 0.82,
   clasa: 'X F',
@@ -723,6 +723,7 @@ async function incarcaTot() {
   S.setari = { ...SETARI_IMPLICITE, ...(await DB.meta('setari', {})) };
   S.ultimaLuna = await DB.meta('ultimaLuna', null);
   S.lastBackup = await DB.meta('lastBackup', null);
+  if (!S.setari.filtruOriginal) { S.setari.filtru = 'original'; S.setari.filtruOriginal = true; await DB.setMeta('setari', S.setari); } // v1.8: implicit „Original”
   migreazaDate();
 }
 function migreazaDate() { // completează câmpurile lipsă, nu șterge nimic
@@ -759,8 +760,15 @@ function clase() {
   S.elevi.forEach(e => e.clasa && s.add(e.clasa)); S.docs.forEach(d => d.clasa && s.add(d.clasa));
   return [...s].filter(Boolean).sort((a, b) => a.localeCompare(b, 'ro'));
 }
+const eMedicala = tip => /medical/i.test(tip || '');
+const scurt = x => dataRo(x).slice(0, 5);
+function perioadaText(d) {
+  if (!eMedicala(d.tip) || !d.perDe) return '';
+  return !d.perPana || d.perPana === d.perDe ? scurt(d.perDe) : `${scurt(d.perDe)}–${scurt(d.perPana)}`;
+}
 function numeFisier(d) {
-  const baza = `${d.elev || 'Fara elev'} - ${d.tip} - ${dataRo(d.data)}`;
+  const per = perioadaText(d);
+  const baza = `${d.elev || 'Fara elev'} - ${d.tip} - ${per ? per.replace('–', '-') + ' - ' : ''}${dataRo(d.data)}`;
   return faraDiacritice(baza).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120);
 }
 
@@ -831,7 +839,7 @@ function potriveste(d) {
   if (F.gata === 'da' && !d.gata) return false;
   if (F.gata === 'nu' && d.gata) return false;
   if (F.q) {
-    const t = norm([d.nume, d.elev, d.tip, d.clasa, d.obs, numeLuna(d.luna), dataRo(d.data)].join(' '));
+    const t = norm([d.nume, d.elev, d.tip, d.clasa, d.obs, numeLuna(d.luna), dataRo(d.data), perioadaText(d)].join(' '));
     return norm(F.q).split(/\s+/).every(c => t.includes(c));
   }
   return true;
@@ -887,7 +895,7 @@ function randDoc(d) {
     <label class="chk"><input type="checkbox" ${S.sel.has(d.id) ? 'checked' : ''}></label>
     <img data-thumb="${d.pagini[0] || ''}" alt="">
     <div class="info"><b>${esc(d.elev || d.nume)}</b>
-      <div class="l2">${esc(dataRo(d.data))} · ${esc(d.clasa)} · ${d.pagini.length} pag.${d.obs ? ' · ' + esc(d.obs) : ''}</div>
+      <div class="l2">${perioadaText(d) ? `<b style="display:inline;color:var(--infield)">🩺 ${esc(perioadaText(d))}</b> · ` : ''}${esc(dataRo(d.data))} · ${esc(d.clasa)} · ${d.pagini.length} pag.${d.obs ? ' · ' + esc(d.obs) : ''}</div>
       <span class="tip">${esc(d.tip)}</span>${ult ? `<span class="trimis">✓ trimis ${esc(dataRo(ult.la.slice(0, 10)).slice(0, 5))}</span>` : ''}${d.gata ? `<span class="eticheta-gata">✓ rezolvat ${esc(dataRo(d.gata.slice(0, 10)).slice(0, 5))}</span>` : ''}
     </div>
     <button class="gata" title="Bifează ca rezolvat" aria-label="Rezolvat">✓</button></div>`;
@@ -1064,7 +1072,7 @@ function optiuniLuni(selectata) {
 function formularDoc(doc) {
   const nou = !doc; const lc = lunaCurenta();
   const lunaImpl = (S.ultimaLuna && S.ultimaLuna >= lunaAnterioara(lc, 2)) ? S.ultimaLuna : lc;
-  const d = doc ? { ...doc } : { elev: '', clasa: S.setari.clasa, tip: S.setari.tipuri[0], luna: lunaImpl, data: azi(), obs: '', nume: '' };
+  const d = doc ? { ...doc } : { elev: '', clasa: S.setari.clasa, tip: S.setari.tipuri[0], luna: lunaImpl, data: azi(), obs: '', nume: '', perDe: '', perPana: '' };
   const elevi = S.elevi.filter(e => !e.arhivat);
   const m = modal(`<h3>${nou ? 'Salvează documentul' : 'Detalii document'}</h3>
     <label class="f">Elev</label><input id="mElev" list="dlElevi" value="${esc(d.elev)}" placeholder="Numele elevului" autocomplete="off">
@@ -1072,22 +1080,35 @@ function formularDoc(doc) {
     <label class="f">Clasa</label><input id="mClasa" list="dlClase" value="${esc(d.clasa)}">
     <datalist id="dlClase">${clase().map(c => `<option value="${esc(c)}">`).join('')}</datalist>
     <label class="f">Tipul documentului</label><select id="mTip">${[...new Set([...S.setari.tipuri, d.tip])].map(t => `<option ${t === d.tip ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+    <div id="mPer" style="display:${eMedicala(d.tip) ? 'block' : 'none'}">
+      <label class="f">Perioada (de la – până la)</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><small class="muted">de la</small><input id="mDe" type="date" value="${esc(d.perDe || '')}"></div>
+        <div><small class="muted">până la</small><input id="mPana" type="date" value="${esc(d.perPana || '')}"></div>
+      </div>
+    </div>
     <label class="f">Luna (gruparea în listă)</label><select id="mLuna">${optiuniLuni(d.luna)}</select>
     <label class="f">Data documentului</label><input id="mData" type="date" value="${esc(d.data)}">
     <label class="f">Nume document</label><input id="mNume" value="${esc(d.nume)}" placeholder="se completează singur">
-    <label class="f">Observații</label><input id="mObs" value="${esc(d.obs)}" placeholder="ex. 3 zile, 12–14 nov.">
+    <label class="f">Observații</label><input id="mObs" value="${esc(d.obs)}" placeholder="ex. motivare, nr. înregistrare…">
     <div class="act"><button class="btn sec" data-x>Renunță</button><button class="btn" data-ok>${nou ? '💾 Salvează' : 'Salvează'}</button></div>`);
   const el = m.el; let numeAtins = !!d.nume && !nou;
-  const numeAuto = () => `${$('#mElev', el).value.trim() || 'Fără elev'} – ${$('#mTip', el).value} – ${dataRo($('#mData', el).value)}`;
+  const numeAuto = () => { const per = perioadaText({ tip: $('#mTip', el).value, perDe: $('#mDe', el).value, perPana: $('#mPana', el).value });
+    return `${$('#mElev', el).value.trim() || 'Fără elev'} – ${$('#mTip', el).value} – ${per ? per + ' – ' : ''}${dataRo($('#mData', el).value)}`; };
   const actual = () => { if (!numeAtins) $('#mNume', el).value = numeAuto(); };
   $('#mNume', el).oninput = () => { numeAtins = true; };
   $('#mElev', el).oninput = () => { const e = elevi.find(x => norm(x.nume) === norm($('#mElev', el).value)); if (e) $('#mClasa', el).value = e.clasa; actual(); };
-  $('#mTip', el).onchange = actual; $('#mData', el).onchange = actual; actual();
+  $('#mTip', el).onchange = () => { $('#mPer', el).style.display = eMedicala($('#mTip', el).value) ? 'block' : 'none'; actual(); };
+  $('#mData', el).onchange = actual;
+  $('#mDe', el).onchange = () => { const de = $('#mDe', el).value, p = $('#mPana', el); if (de && (!p.value || p.value < de)) p.value = de; actual(); };
+  $('#mPana', el).onchange = actual; actual();
   $('[data-x]', el).onclick = m.inchide;
   $('[data-ok]', el).onclick = async () => {
     const elev = $('#mElev', el).value.trim();
     if (!elev && !await confirma('Nu ai scris numele elevului. Salvezi totuși?', 'Salvează')) return;
-    const v = { elev, clasa: $('#mClasa', el).value.trim(), tip: $('#mTip', el).value, luna: $('#mLuna', el).value,
+    const med = eMedicala($('#mTip', el).value), perDe = med ? $('#mDe', el).value : '', perPana = med ? ($('#mPana', el).value || perDe) : '';
+    if (perDe && perPana < perDe) { toast('„Până la” nu poate fi înainte de „de la”.', 3500); return; }
+    const v = { elev, clasa: $('#mClasa', el).value.trim(), tip: $('#mTip', el).value, luna: $('#mLuna', el).value, perDe, perPana,
       data: $('#mData', el).value || azi(), obs: $('#mObs', el).value.trim(), nume: $('#mNume', el).value.trim() || numeAuto() };
     // elev nou → îl adaug în lista de elevi
     if (elev && !S.elevi.some(e => norm(e.nume) === norm(elev))) { S.elevi.push({ id: uid(), nume: elev, clasa: v.clasa || S.setari.clasa }); await salveazaElevi(); }
