@@ -763,6 +763,15 @@ function clase() {
   return [...s].filter(Boolean).sort((a, b) => a.localeCompare(b, 'ro'));
 }
 const eMedicala = tip => true; // v2.0: perioada de la–până la apare la orice tip de document
+// cererile și adeverințele sunt pentru clasa de dirigenție; scutirile medicale EFS sunt pentru elevii de la orele de EFS
+const eScutireEFS = t => /scutire/i.test(t || '');
+const eDirigentie = t => /cerere|adeverin/i.test(t || '');
+function eleviPentruTip(lista, t) {
+  const dir = norm(S.setari.clasa);
+  if (eDirigentie(t)) return lista.filter(e => norm(e.clasa) === dir);
+  if (eScutireEFS(t)) return lista.filter(e => norm(e.clasa) !== dir);
+  return lista;
+}
 const scurt = x => dataRo(x).slice(0, 5);
 function perioadaText(d) {
   if (!eMedicala(d.tip) || !d.perDe) return '';
@@ -1079,12 +1088,13 @@ function formularDoc(doc, dinLista = false) {
   const lunaImpl = (S.ultimaLuna && S.ultimaLuna >= lunaAnterioara(lc, 2)) ? S.ultimaLuna : lc;
   const d = doc ? { ...doc } : { elev: '', clasa: S.setari.clasa, tip: (S.ultimTip && S.setari.tipuri.includes(S.ultimTip)) ? S.ultimTip : S.setari.tipuri[0], luna: lunaImpl, data: azi(), obs: '', nume: '', perDe: '', perPana: '' };
   const elevi = S.elevi.filter(e => !e.arhivat);
+  if (nou && eScutireEFS(d.tip)) d.clasa = '';
   const m = modal(`<h3>${nou ? 'Salvează documentul' : 'Modifică documentul'}</h3>
-    <label class="f">Elev</label><input id="mElev" list="dlElevi" value="${esc(d.elev)}" placeholder="Numele elevului" autocomplete="off">
-    <datalist id="dlElevi">${elevi.map(e => `<option value="${esc(e.nume)}">${esc(e.clasa)}</option>`).join('')}</datalist>
+    <label class="f">Tipul documentului</label><select id="mTip">${[...new Set([...S.setari.tipuri, d.tip])].map(t => `<option ${t === d.tip ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+    <label class="f">Elev <small class="muted" id="mElevInfo"></small></label><input id="mElev" list="dlElevi" value="${esc(d.elev)}" placeholder="Numele elevului" autocomplete="off">
+    <datalist id="dlElevi"></datalist>
     <label class="f">Clasa</label><input id="mClasa" list="dlClase" value="${esc(d.clasa)}">
     <datalist id="dlClase">${clase().map(c => `<option value="${esc(c)}">`).join('')}</datalist>
-    <label class="f">Tipul documentului</label><select id="mTip">${[...new Set([...S.setari.tipuri, d.tip])].map(t => `<option ${t === d.tip ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
     <div id="mPer" style="display:${eMedicala(d.tip) ? 'block' : 'none'}">
       <label class="f">Perioada (de la – până la)</label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -1102,9 +1112,21 @@ function formularDoc(doc, dinLista = false) {
     const p = per || $('#mObs', el).value.trim();
     return p ? `${$('#mElev', el).value.trim() || 'Fără elev'} – ${p} – ${$('#mTip', el).value}` : `${$('#mElev', el).value.trim() || 'Fără elev'} – ${$('#mTip', el).value} – ${dataRo($('#mData', el).value)}`; };
   const actual = () => { if (!numeAtins) $('#mNume', el).value = numeAuto(); };
+  // lista de nume depinde de tipul documentului: cereri și adeverințe → elevii clasei de dirigenție; scutire EFS → fără ei
+  const listaElevi = () => { const t = $('#mTip', el).value, l = eleviPentruTip(elevi, t);
+    $('#dlElevi', el).innerHTML = l.map(e => `<option value="${esc(e.nume)}">${esc(e.clasa)}</option>`).join('');
+    $('#mElevInfo', el).textContent = eDirigentie(t) ? `(clasa ${S.setari.clasa})` : eScutireEFS(t) ? `(fără clasa ${S.setari.clasa})` : ''; };
+  listaElevi();
   $('#mNume', el).oninput = () => { numeAtins = true; };
   $('#mElev', el).oninput = () => { const e = elevi.find(x => norm(x.nume) === norm($('#mElev', el).value)); if (e) $('#mClasa', el).value = e.clasa; actual(); };
-  $('#mTip', el).onchange = () => { $('#mPer', el).style.display = eMedicala($('#mTip', el).value) ? 'block' : 'none'; actual(); };
+  $('#mTip', el).onchange = () => { const t = $('#mTip', el).value, cl = $('#mClasa', el), ev = $('#mElev', el), dir = norm(S.setari.clasa);
+    $('#mPer', el).style.display = eMedicala(t) ? 'block' : 'none';
+    // elevul scris nu se potrivește cu noul tip → se golește, ca să-l alegi din lista bună
+    const e = elevi.find(x => norm(x.nume) === norm(ev.value));
+    if (e && !eleviPentruTip([e], t).length) { ev.value = ''; cl.value = ''; }
+    if (eScutireEFS(t) && norm(cl.value) === dir) cl.value = '';
+    if (eDirigentie(t) && !cl.value.trim()) cl.value = S.setari.clasa;
+    listaElevi(); actual(); };
   $('#mData', el).onchange = actual;
   $('#mDe', el).onchange = () => { const de = $('#mDe', el).value, p = $('#mPana', el); if (de && (!p.value || p.value < de)) p.value = de; actual(); };
   $('#mPana', el).onchange = actual; $('#mObs', el).oninput = actual; if (nou) actual();
