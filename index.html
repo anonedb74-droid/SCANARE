@@ -220,7 +220,7 @@ small{font-size:12.5px}
    Concept: prof. Daniel Botezatu · realizată cu asistență AI (Claude)
    Toate datele stau pe telefon (IndexedDB). Backup: fișier JSON → Drive.
    ===================================================================== */
-const VERSIUNE = '1.9';
+const VERSIUNE = '2.0';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -722,6 +722,7 @@ async function incarcaTot() {
   S.elevi = await DB.meta('elevi', []);
   S.setari = { ...SETARI_IMPLICITE, ...(await DB.meta('setari', {})) };
   S.ultimaLuna = await DB.meta('ultimaLuna', null);
+  S.ultimTip = await DB.meta('ultimTip', null);
   S.lastBackup = await DB.meta('lastBackup', null);
   if (!S.setari.filtruOriginal) { S.setari.filtru = 'original'; S.setari.filtruOriginal = true; await DB.setMeta('setari', S.setari); } // v1.8: implicit „Original”
   migreazaDate();
@@ -760,7 +761,7 @@ function clase() {
   S.elevi.forEach(e => e.clasa && s.add(e.clasa)); S.docs.forEach(d => d.clasa && s.add(d.clasa));
   return [...s].filter(Boolean).sort((a, b) => a.localeCompare(b, 'ro'));
 }
-const eMedicala = tip => /medical/i.test(tip || '');
+const eMedicala = tip => true; // v2.0: perioada de la–până la apare la orice tip de document
 const scurt = x => dataRo(x).slice(0, 5);
 function perioadaText(d) {
   if (!eMedicala(d.tip) || !d.perDe) return '';
@@ -1073,7 +1074,7 @@ function optiuniLuni(selectata) {
 function formularDoc(doc) {
   const nou = !doc; const lc = lunaCurenta();
   const lunaImpl = (S.ultimaLuna && S.ultimaLuna >= lunaAnterioara(lc, 2)) ? S.ultimaLuna : lc;
-  const d = doc ? { ...doc } : { elev: '', clasa: S.setari.clasa, tip: S.setari.tipuri[0], luna: lunaImpl, data: azi(), obs: '', nume: '', perDe: '', perPana: '' };
+  const d = doc ? { ...doc } : { elev: '', clasa: S.setari.clasa, tip: (S.ultimTip && S.setari.tipuri.includes(S.ultimTip)) ? S.ultimTip : S.setari.tipuri[0], luna: lunaImpl, data: azi(), obs: '', nume: '', perDe: '', perPana: '' };
   const elevi = S.elevi.filter(e => !e.arhivat);
   const m = modal(`<h3>${nou ? 'Salvează documentul' : 'Detalii document'}</h3>
     <label class="f">Elev</label><input id="mElev" list="dlElevi" value="${esc(d.elev)}" placeholder="Numele elevului" autocomplete="off">
@@ -1115,6 +1116,7 @@ function formularDoc(doc) {
     // elev nou → îl adaug în lista de elevi
     if (elev && !S.elevi.some(e => norm(e.nume) === norm(elev))) { S.elevi.push({ id: uid(), nume: elev, clasa: v.clasa || S.setari.clasa }); await salveazaElevi(); }
     S.ultimaLuna = v.luna; await DB.setMeta('ultimaLuna', v.luna);
+    S.ultimTip = v.tip; await DB.setMeta('ultimTip', v.tip);
     if (nou) {
       const nd = { id: uid(), ...v, pagini: E.pages.map(p => p.id), trimis: [], creat: Date.now(), modificat: Date.now() };
       for (const p of E.pages) { p.docId = nd.id; await DB.put('pages', p); }
