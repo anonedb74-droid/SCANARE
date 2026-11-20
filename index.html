@@ -85,6 +85,7 @@ small{font-size:12.5px}
 .tip{display:inline-block;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;background:#E6ECF4;color:var(--infield);margin-top:3px}
 .trimis{display:inline-block;font-size:11.5px;color:var(--ok);font-weight:600;margin-left:6px}
 .doc .gata{flex:none;width:44px;height:44px;border-radius:50%;border:2px solid var(--border);background:#fff;color:transparent;font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0}
+.doc .edit{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--border);background:#fff;color:var(--infield);font-size:18px;padding:0}
 .doc.rezolvat{border-left:5px solid var(--ok)}
 .doc.rezolvat .gata{background:var(--ok);border-color:var(--ok);color:#fff}
 .doc.rezolvat .info b{color:var(--ok)}
@@ -220,7 +221,7 @@ small{font-size:12.5px}
    Concept: prof. Daniel Botezatu · realizată cu asistență AI (Claude)
    Toate datele stau pe telefon (IndexedDB). Backup: fișier JSON → Drive.
    ===================================================================== */
-const VERSIUNE = '2.0';
+const VERSIUNE = '2.1';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -881,6 +882,7 @@ function randeazaLista() {
     const id = el.dataset.id;
     $('input', el).onchange = e => { e.target.checked ? S.sel.add(id) : S.sel.delete(id); el.classList.toggle('bifat', e.target.checked); actualizeazaSelbar(); };
     $('.chk', el).onclick = e => e.stopPropagation();
+    $('.edit', el).onclick = e => { e.stopPropagation(); formularDoc(S.docs.find(x => x.id === id), true); };
     $('.gata', el).onclick = async e => {
       e.stopPropagation();
       const d = S.docs.find(x => x.id === id); const val = !d.gata;
@@ -900,6 +902,7 @@ function randDoc(d) {
       <div class="l2">${perioadaText(d) ? `<b style="display:inline;color:var(--infield)">🩺 ${esc(perioadaText(d))}</b> · ` : ''}${esc(dataRo(d.data))} · ${esc(d.clasa)} · ${d.pagini.length} pag.${d.obs ? ' · ' + esc(d.obs) : ''}</div>
       <span class="tip">${esc(d.tip)}</span>${ult ? `<span class="trimis">✓ trimis ${esc(dataRo(ult.la.slice(0, 10)).slice(0, 5))}</span>` : ''}${d.gata ? `<span class="eticheta-gata">✓ rezolvat ${esc(dataRo(d.gata.slice(0, 10)).slice(0, 5))}</span>` : ''}
     </div>
+    <button class="edit" title="Modifică detaliile" aria-label="Modifică">✎</button>
     <button class="gata" title="Bifează ca rezolvat" aria-label="Rezolvat">✓</button></div>`;
 }
 async function incarcaMiniaturi() {
@@ -1071,12 +1074,12 @@ function optiuniLuni(selectata) {
   S.docs.forEach(d => s.add(d.luna));
   return [...s].filter(Boolean).sort().reverse().map(l => `<option value="${l}" ${l === selectata ? 'selected' : ''}>${numeLuna(l)}</option>`).join('');
 }
-function formularDoc(doc) {
+function formularDoc(doc, dinLista = false) {
   const nou = !doc; const lc = lunaCurenta();
   const lunaImpl = (S.ultimaLuna && S.ultimaLuna >= lunaAnterioara(lc, 2)) ? S.ultimaLuna : lc;
   const d = doc ? { ...doc } : { elev: '', clasa: S.setari.clasa, tip: (S.ultimTip && S.setari.tipuri.includes(S.ultimTip)) ? S.ultimTip : S.setari.tipuri[0], luna: lunaImpl, data: azi(), obs: '', nume: '', perDe: '', perPana: '' };
   const elevi = S.elevi.filter(e => !e.arhivat);
-  const m = modal(`<h3>${nou ? 'Salvează documentul' : 'Detalii document'}</h3>
+  const m = modal(`<h3>${nou ? 'Salvează documentul' : 'Modifică documentul'}</h3>
     <label class="f">Elev</label><input id="mElev" list="dlElevi" value="${esc(d.elev)}" placeholder="Numele elevului" autocomplete="off">
     <datalist id="dlElevi">${elevi.map(e => `<option value="${esc(e.nume)}">${esc(e.clasa)}</option>`).join('')}</datalist>
     <label class="f">Clasa</label><input id="mClasa" list="dlClase" value="${esc(d.clasa)}">
@@ -1094,7 +1097,7 @@ function formularDoc(doc) {
     <label class="f">Nume document</label><input id="mNume" value="${esc(d.nume)}" placeholder="se completează singur">
     <label class="f">Observații</label><input id="mObs" value="${esc(d.obs)}" placeholder="perioada motivării, ex. 12-14.11.2026">
     <div class="act"><button class="btn sec" data-x>Renunță</button><button class="btn" data-ok>${nou ? '💾 Salvează' : 'Salvează'}</button></div>`);
-  const el = m.el; let numeAtins = !!d.nume && !nou;
+  const el = m.el; let numeAtins = false; // numele se refă singur când schimbi elevul, tipul sau perioada (dacă nu-l scrii tu de mână)
   const numeAuto = () => { const per = perioadaText({ tip: $('#mTip', el).value, perDe: $('#mDe', el).value, perPana: $('#mPana', el).value });
     const p = per || $('#mObs', el).value.trim();
     return p ? `${$('#mElev', el).value.trim() || 'Fără elev'} – ${p} – ${$('#mTip', el).value}` : `${$('#mElev', el).value.trim() || 'Fără elev'} – ${$('#mTip', el).value} – ${dataRo($('#mData', el).value)}`; };
@@ -1104,7 +1107,7 @@ function formularDoc(doc) {
   $('#mTip', el).onchange = () => { $('#mPer', el).style.display = eMedicala($('#mTip', el).value) ? 'block' : 'none'; actual(); };
   $('#mData', el).onchange = actual;
   $('#mDe', el).onchange = () => { const de = $('#mDe', el).value, p = $('#mPana', el); if (de && (!p.value || p.value < de)) p.value = de; actual(); };
-  $('#mPana', el).onchange = actual; $('#mObs', el).oninput = actual; actual();
+  $('#mPana', el).onchange = actual; $('#mObs', el).oninput = actual; if (nou) actual();
   $('[data-x]', el).onclick = m.inchide;
   $('[data-ok]', el).onclick = async () => {
     const elev = $('#mElev', el).value.trim();
@@ -1125,7 +1128,7 @@ function formularDoc(doc) {
       m.inchide(); toast('Document salvat ✓'); arata('docs');
     } else {
       Object.assign(doc, v, { modificat: Date.now() }); await DB.put('docs', doc);
-      m.inchide(); toast('Salvat ✓'); randeazaEditor();
+      m.inchide(); toast('Salvat ✓'); dinLista ? randeazaDocs() : randeazaEditor();
     }
   };
 }
