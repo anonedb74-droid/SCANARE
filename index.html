@@ -214,6 +214,7 @@ small{font-size:12.5px}
 <div class="lucreaza" id="lucreaza"><div class="spin"></div><div id="lucreazaTxt">Se procesează…</div></div>
 <div id="toast"></div>
 
+<script src="scanner.js"></script>
 <script>
 'use strict';
 /* =====================================================================
@@ -221,7 +222,7 @@ small{font-size:12.5px}
    Concept: prof. Daniel Botezatu · realizată cu asistență AI (Claude)
    Toate datele stau pe telefon (IndexedDB). Backup: fișier JSON → Drive.
    ===================================================================== */
-const VERSIUNE = '2.1';
+const VERSIUNE = '2.2';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -333,386 +334,16 @@ function elibereazaURL(pgId) {
 }
 
 /* =====================================================================
-   PRELUCRAREA IMAGINII
+   PRELUCRAREA IMAGINII + PDF — în fișierul comun scanner.js
+   (același motor și în aplicația „Absențe lunare”; corecturile se fac acolo)
    ===================================================================== */
-const canvasNou = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
-function incarcaImagine(blob) {
-  return new Promise((res, rej) => {
-    const u = URL.createObjectURL(blob); const i = new Image();
-    i.onload = () => { res(i); setTimeout(() => URL.revokeObjectURL(u), 3000); };
-    i.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Imaginea nu a putut fi citită')); };
-    i.src = u;
-  });
-}
-async function blobInCanvas(blob, maxLatura) {
-  const img = await incarcaImagine(blob);
-  let w = img.naturalWidth, h = img.naturalHeight;
-  const s = Math.min(1, maxLatura / Math.max(w, h));
-  w = Math.max(1, Math.round(w * s)); h = Math.max(1, Math.round(h * s));
-  const c = canvasNou(w, h); const x = c.getContext('2d');
-  x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, w, h);
-  return c;
-}
-const canvasInBlob = (c, q) => new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('Conversia imaginii a eșuat')), 'image/jpeg', q));
-
-/* ---- Detectarea automată a colțurilor foii ----
-   Foaia e mai deschisă la culoare și mai puțin colorată decât fundalul.
-   Încerc mai multe praguri, păstrez forma cea mai „dreptunghiulară”. */
-function blurCutie(src, w, h, r) {
-  const tmp = new Float32Array(w * h), out = new Float32Array(w * h), k = 2 * r + 1;
-  for (let y = 0; y < h; y++) {
-    let s = 0; const o = y * w;
-    for (let i = -r; i <= r; i++) s += src[o + Math.min(w - 1, Math.max(0, i))];
-    for (let x = 0; x < w; x++) {
-      tmp[o + x] = s / k;
-      s += src[o + Math.min(w - 1, x + r + 1)] - src[o + Math.max(0, x - r)];
-    }
-  }
-  for (let x = 0; x < w; x++) {
-    let s = 0;
-    for (let i = -r; i <= r; i++) s += tmp[Math.min(h - 1, Math.max(0, i)) * w + x];
-    for (let y = 0; y < h; y++) {
-      out[y * w + x] = s / k;
-      s += tmp[Math.min(h - 1, y + r + 1) * w + x] - tmp[Math.max(0, y - r) * w + x];
-    }
-  }
-  return out;
-}
-function otsu(hist, n) {
-  let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
-  let sB = 0, wB = 0, best = 0, t = 128;
-  for (let i = 0; i < 256; i++) {
-    wB += hist[i]; if (!wB) continue; const wF = n - wB; if (!wF) break;
-    sB += i * hist[i]; const mB = sB / wB, mF = (sum - sB) / wF;
-    const v = wB * wF * (mB - mF) * (mB - mF); if (v > best) { best = v; t = i; }
-  }
-  return t;
-}
-function morfo(m, w, h, dilata) {
-  const o = new Uint8Array(w * h);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    let v = dilata ? 0 : 1;
-    for (let dy = -1; dy <= 1 && (dilata ? !v : v); dy++) for (let dx = -1; dx <= 1; dx++) {
-      const xx = x + dx, yy = y + dy;
-      const q = (xx < 0 || yy < 0 || xx >= w || yy >= h) ? 0 : m[yy * w + xx];
-      if (dilata && q) { v = 1; break; }
-      if (!dilata && !q) { v = 0; break; }
-    }
-    o[y * w + x] = v;
-  }
-  return o;
-}
-function anvelopa(pts) { // convex hull (monotone chain)
-  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-  const lo = [], up = [];
-  for (const p of pts) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
-  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
-  up.pop(); lo.pop(); return lo.concat(up);
-}
-const ariaPoligon = p => { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[(i + 1) % p.length]; a += p[i][0] * q[1] - q[0] * p[i][1]; } return a / 2; };
-function simplifica(p, max) { // elimin vârfurile care contează cel mai puțin
-  p = p.slice();
-  while (p.length > max) {
-    let mi = 0, ma = Infinity;
-    for (let i = 0; i < p.length; i++) {
-      const a = p[(i - 1 + p.length) % p.length], b = p[i], c = p[(i + 1) % p.length];
-      const ar = Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
-      if (ar < ma) { ma = ar; mi = i; }
-    }
-    p.splice(mi, 1);
-  }
-  return p;
-}
-function patrulaterMaxim(p) {
-  if (p.length <= 4) return p;
-  let best = null, ba = -1; const n = p.length;
-  for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) for (let c = b + 1; c < n; c++) for (let d = c + 1; d < n; d++) {
-    const q = [p[a], p[b], p[c], p[d]]; const ar = Math.abs(ariaPoligon(q));
-    if (ar > ba) { ba = ar; best = q; }
-  }
-  return best;
-}
-function ordoneazaColturi(q) { // stânga-sus, dreapta-sus, dreapta-jos, stânga-jos
-  q = q.map(p => [p[0], p[1]]);
-  const cx = q.reduce((s, p) => s + p[0], 0) / 4, cy = q.reduce((s, p) => s + p[1], 0) / 4;
-  q.sort((a, b) => Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx));
-  let k = 0; for (let i = 1; i < 4; i++) if (q[i][0] + q[i][1] < q[k][0] + q[k][1]) k = i;
-  return q.slice(k).concat(q.slice(0, k));
-}
-function candidat(sc, w, h, t) {
-  const n = w * h; let m = new Uint8Array(n);
-  for (let i = 0; i < n; i++) m[i] = sc[i] > t ? 1 : 0;
-  m = morfo(m, w, h, false); m = morfo(m, w, h, false); m = morfo(m, w, h, true); m = morfo(m, w, h, true);
-  const lab = new Int32Array(n), st = new Int32Array(n); let nl = 0, bun = null;
-  for (let i = 0; i < n; i++) {
-    if (!m[i] || lab[i]) continue;
-    nl++; let sp = 0; st[sp++] = i; lab[i] = nl; let area = 0, sx = 0, sy = 0, mar = 0;
-    while (sp) {
-      const p = st[--sp]; area++; const px = p % w, py = (p / w) | 0; sx += px; sy += py;
-      if (px === 0) mar |= 1; if (px === w - 1) mar |= 2; if (py === 0) mar |= 4; if (py === h - 1) mar |= 8;
-      if (px > 0 && m[p - 1] && !lab[p - 1]) { lab[p - 1] = nl; st[sp++] = p - 1; }
-      if (px < w - 1 && m[p + 1] && !lab[p + 1]) { lab[p + 1] = nl; st[sp++] = p + 1; }
-      if (py > 0 && m[p - w] && !lab[p - w]) { lab[p - w] = nl; st[sp++] = p - w; }
-      if (py < h - 1 && m[p + w] && !lab[p + w]) { lab[p + w] = nl; st[sp++] = p + w; }
-    }
-    if (area > n * 0.08) {
-      const cx = sx / area / w - 0.5, cy = sy / area / h - 0.5;
-      const s = area / n * (1 - Math.hypot(cx, cy));
-      if (!bun || s > bun.s) bun = { id: nl, area, mar, s };
-    }
-  }
-  if (!bun) return null;
-  // umplu golurile (textul de pe foaie): tot ce nu se atinge din margine aparține foii
-  const afara = new Uint8Array(n); let sp = 0;
-  const pune = p => { if (!afara[p] && lab[p] !== bun.id) { afara[p] = 1; st[sp++] = p; } };
-  for (let x = 0; x < w; x++) { pune(x); pune((h - 1) * w + x); }
-  for (let y = 0; y < h; y++) { pune(y * w); pune(y * w + w - 1); }
-  while (sp) {
-    const p = st[--sp]; const px = p % w, py = (p / w) | 0;
-    if (px > 0) pune(p - 1); if (px < w - 1) pune(p + 1); if (py > 0) pune(p - w); if (py < h - 1) pune(p + w);
-  }
-  let plin = 0; const pts = [];
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const p = y * w + x; if (afara[p]) continue; plin++;
-    if (x === 0 || y === 0 || x === w - 1 || y === h - 1 || afara[p - 1] || afara[p + 1] || afara[p - w] || afara[p + w]) pts.push([x + 0.5, y + 0.5]);
-  }
-  if (pts.length < 8) return null;
-  const q = patrulaterMaxim(simplifica(anvelopa(pts), 12));
-  if (!q || q.length < 4) return null;
-  const qa = Math.abs(ariaPoligon(q));
-  const rect = Math.min(plin, qa) / Math.max(plin, qa);
-  const frac = qa / n;
-  const margini = [1, 2, 4, 8].filter(b => bun.mar & b).length;
-  const scor = rect * Math.min(1, frac / 0.25) * (margini >= 3 ? 0.55 : margini === 2 ? 0.85 : 1);
-  return { quad: q, rect, scor, frac, margini };
-}
-const COLTURI_TOT = [[0, 0], [1, 0], [1, 1], [0, 1]];
-function detecteazaColturi(c) {
-  const s = Math.min(1, 360 / Math.max(c.width, c.height));
-  const w = Math.max(16, Math.round(c.width * s)), h = Math.max(16, Math.round(c.height * s));
-  const mc = canvasNou(w, h); const x = mc.getContext('2d', { willReadFrequently: true });
-  x.imageSmoothingQuality = 'high'; x.drawImage(c, 0, 0, w, h);
-  const d = x.getImageData(0, 0, w, h).data; const n = w * h;
-  let sc = new Float32Array(n);
-  for (let i = 0, j = 0; i < n; i++, j += 4) {
-    const r = d[j], g = d[j + 1], b = d[j + 2];
-    sc[i] = 0.299 * r + 0.587 * g + 0.114 * b - 0.5 * (Math.max(r, g, b) - Math.min(r, g, b));
-  }
-  sc = blurCutie(sc, w, h, 2); sc = blurCutie(sc, w, h, 2);
-  const hist = new Float64Array(256);
-  for (let i = 0; i < n; i++) { const v = sc[i] < 0 ? 0 : sc[i] > 255 ? 255 : sc[i]; hist[v | 0]++; }
-  const t0 = otsu(hist, n);
-  let acc = 0, p99 = 255; for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= n * 0.01) { p99 = v; break; } }
-  const praguri = [t0, t0 + (p99 - t0) * 0.3, t0 + (p99 - t0) * 0.55, t0 * 0.85];
-  let best = null;
-  for (const t of praguri) { const k = candidat(sc, w, h, t); if (k && (!best || k.scor > best.scor)) best = k; }
-  if (!best) return { colturi: COLTURI_TOT.map(p => p.slice()), sigur: false };
-  const col = ordoneazaColturi(best.quad).map(([px, py]) => [Math.min(1, Math.max(0, px / w)), Math.min(1, Math.max(0, py / h))]);
-  return { colturi: col, sigur: best.scor > 0.6 && best.rect > 0.9, scor: best.scor };
-}
-
-/* ---- Îndreptarea perspectivei (omografie) ---- */
-function omografie(din, spre) { // găsește h astfel încât (u,v) din „din” → (x,y) din „spre”
-  const A = [];
-  for (let k = 0; k < 4; k++) {
-    const [u, v] = din[k], [x, y] = spre[k];
-    A.push([u, v, 1, 0, 0, 0, -u * x, -v * x, x]);
-    A.push([0, 0, 0, u, v, 1, -u * y, -v * y, y]);
-  }
-  for (let c = 0; c < 8; c++) {
-    let p = c; for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
-    [A[c], A[p]] = [A[p], A[c]];
-    const dv = A[c][c] || 1e-12;
-    for (let r = 0; r < 8; r++) if (r !== c) { const f = A[r][c] / dv; for (let k = c; k < 9; k++) A[r][k] -= f * A[c][k]; }
-  }
-  return A.map((r, i) => r[8] / (r[i] || 1e-12));
-}
-function indreapta(src, colturi, proportie) {
-  const W = src.width, H = src.height;
-  const P = colturi.map(([x, y]) => [x * W, y * H]);
-  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-  let ow = Math.max(dist(P[0], P[1]), dist(P[3], P[2])), oh = Math.max(dist(P[0], P[3]), dist(P[1], P[2]));
-  if (proportie === 'a4') { const r = Math.SQRT2; if (oh >= ow) { oh = Math.max(oh, ow * r); ow = oh / r; } else { ow = Math.max(ow, oh * r); oh = ow / r; } }
-  const s = Math.min(1, 2200 / Math.max(ow, oh));
-  ow = Math.max(8, Math.round(ow * s)); oh = Math.max(8, Math.round(oh * s));
-  const h = omografie([[0, 0], [ow, 0], [ow, oh], [0, oh]], P);
-  const sd = src.getContext('2d').getImageData(0, 0, W, H).data;
-  const out = new ImageData(ow, oh), od = out.data;
-  let o = 0;
-  for (let v = 0; v < oh; v++) {
-    const vv = v + 0.5;
-    for (let u = 0; u < ow; u++) {
-      const uu = u + 0.5;
-      const den = h[6] * uu + h[7] * vv + 1;
-      let x = (h[0] * uu + h[1] * vv + h[2]) / den - 0.5, y = (h[3] * uu + h[4] * vv + h[5]) / den - 0.5;
-      if (x < 0) x = 0; else if (x > W - 1.001) x = W - 1.001;
-      if (y < 0) y = 0; else if (y > H - 1.001) y = H - 1.001;
-      const x0 = x | 0, y0 = y | 0, fx = x - x0, fy = y - y0;
-      const i00 = (y0 * W + x0) * 4, i10 = i00 + 4, i01 = i00 + W * 4, i11 = i01 + 4;
-      const a = (1 - fx) * (1 - fy), b = fx * (1 - fy), c = (1 - fx) * fy, d = fx * fy;
-      od[o] = sd[i00] * a + sd[i10] * b + sd[i01] * c + sd[i11] * d;
-      od[o + 1] = sd[i00 + 1] * a + sd[i10 + 1] * b + sd[i01 + 1] * c + sd[i11 + 1] * d;
-      od[o + 2] = sd[i00 + 2] * a + sd[i10 + 2] * b + sd[i01 + 2] * c + sd[i11 + 2] * d;
-      od[o + 3] = 255; o += 4;
-    }
-  }
-  const c = canvasNou(ow, oh); c.getContext('2d').putImageData(out, 0, 0);
-  return c;
-}
-
-/* ---- Filtre: „scanare curată” = fundal alb uniform, scrisul închis ---- */
-function aplicaFiltru(c, filtru) {
-  if (filtru === 'original') return;
-  const w = c.width, h = c.height, ctx = c.getContext('2d');
-  const id = ctx.getImageData(0, 0, w, h), d = id.data;
-  const cs = Math.max(8, Math.round(Math.max(w, h) / 40));
-  const gw = Math.ceil(w / cs), gh = Math.ceil(h / cs), nc = gw * gh;
-  const hist = new Uint32Array(nc * 3 * 64), cnt = new Uint32Array(nc);
-  for (let y = 0; y < h; y += 2) {
-    const cy = (y / cs) | 0;
-    for (let x = 0; x < w; x += 2) {
-      const cell = cy * gw + ((x / cs) | 0), i = (y * w + x) * 4, b = cell * 192;
-      hist[b + (d[i] >> 2)]++; hist[b + 64 + (d[i + 1] >> 2)]++; hist[b + 128 + (d[i + 2] >> 2)]++; cnt[cell]++;
-    }
-  }
-  // fundalul fiecărei celule = percentila 90 (hârtia, nu scrisul)
-  let bg = [new Float32Array(nc), new Float32Array(nc), new Float32Array(nc)];
-  for (let cell = 0; cell < nc; cell++) for (let ch = 0; ch < 3; ch++) {
-    const lim = cnt[cell] * 0.1; let a = 0, v = 63; const b = cell * 192 + ch * 64;
-    for (; v > 0; v--) { a += hist[b + v]; if (a >= lim) break; }
-    bg[ch][cell] = Math.max(60, v * 4 + 2);
-  }
-  // netezire 3×3
-  bg = bg.map(g => { const o = new Float32Array(nc);
-    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) { let s = 0, k = 0;
-      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < gw && yy < gh) { s += g[yy * gw + xx]; k++; } }
-      o[y * gw + x] = s / k; }
-    return o; });
-  const lut = new Uint8ClampedArray(301);   // raport (0…1.5) → valoare
-  for (let i = 0; i <= 300; i++) { const r = i / 200; let v = (r - 0.3) / (0.9 - 0.3); v = v < 0 ? 0 : v > 1 ? 1 : v; lut[i] = 255 * Math.pow(v, 1.35); }
-  const R = bg[0], G = bg[1], B = bg[2];
-  for (let y = 0; y < h; y++) {
-    let gy = (y + 0.5) / cs - 0.5; if (gy < 0) gy = 0; if (gy > gh - 1) gy = gh - 1;
-    const y0 = gy | 0, y1 = Math.min(gh - 1, y0 + 1), fy = gy - y0;
-    for (let x = 0; x < w; x++) {
-      let gx = (x + 0.5) / cs - 0.5; if (gx < 0) gx = 0; if (gx > gw - 1) gx = gw - 1;
-      const x0 = gx | 0, x1 = Math.min(gw - 1, x0 + 1), fx = gx - x0;
-      const a = y0 * gw + x0, b = y0 * gw + x1, cc = y1 * gw + x0, dd = y1 * gw + x1;
-      const wa = (1 - fx) * (1 - fy), wb = fx * (1 - fy), wc = (1 - fx) * fy, wd = fx * fy;
-      const br = R[a] * wa + R[b] * wb + R[cc] * wc + R[dd] * wd;
-      const bgg = G[a] * wa + G[b] * wb + G[cc] * wc + G[dd] * wd;
-      const bb = B[a] * wa + B[b] * wb + B[cc] * wc + B[dd] * wd;
-      const i = (y * w + x) * 4;
-      const rr = d[i] / br, rg = d[i + 1] / bgg, rb = d[i + 2] / bb;
-      if (filtru === 'curat') {
-        d[i] = lut[Math.min(300, (rr * 200) | 0)]; d[i + 1] = lut[Math.min(300, (rg * 200) | 0)]; d[i + 2] = lut[Math.min(300, (rb * 200) | 0)];
-      } else {
-        const L = 0.299 * rr + 0.587 * rg + 0.114 * rb;
-        const v = filtru === 'an' ? (L < 0.72 ? 0 : 255) : lut[Math.min(300, (L * 200) | 0)];
-        d[i] = d[i + 1] = d[i + 2] = v;
-      }
-    }
-  }
-  ctx.putImageData(id, 0, 0);
-}
-function roteste(c, grade) {
-  grade = ((grade % 360) + 360) % 360; if (!grade) return c;
-  const o = grade === 180 ? canvasNou(c.width, c.height) : canvasNou(c.height, c.width);
-  const x = o.getContext('2d'); x.translate(o.width / 2, o.height / 2); x.rotate(grade * Math.PI / 180);
-  x.drawImage(c, -c.width / 2, -c.height / 2); return o;
-}
-function miniatura(c, latura) {
-  const s = latura / Math.max(c.width, c.height);
-  const t = canvasNou(Math.max(1, Math.round(c.width * s)), Math.max(1, Math.round(c.height * s)));
-  const x = t.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(c, 0, 0, t.width, t.height); return t;
-}
-/* ---- Mesaj pe document: bandă albă pe marginea aleasă (nu acoperă scrisul) ---- */
-function rupeRanduri(ctx, text, max) {
-  const out = [];
-  for (const par of String(text).split('\n')) {
-    let rand = '';
-    for (const cuv of par.split(/\s+/).filter(Boolean)) {
-      const t = rand ? rand + ' ' + cuv : cuv;
-      if (ctx.measureText(t).width > max && rand) { out.push(rand); rand = cuv; } else rand = t;
-    }
-    out.push(rand);
-  }
-  return out;
-}
-function adaugaMesaj(c, m) {
-  // bandă portocaliu-pal, lungă cât textul, pe marginea aleasă:
-  // sus/jos → aliniată în dreapta; stânga/dreapta → aliniată sus
-  if (!m || !m.text || !m.text.trim()) return c;
-  const poz = m.poz || 'dreapta', vert = poz === 'stanga' || poz === 'dreapta';
-  const fs = Math.max(16, Math.round(Math.min(c.width, c.height) * 0.032));
-  const font = `600 ${fs}px Helvetica, Arial, sans-serif`;
-  const pad = Math.round(fs * 0.7), lh = Math.round(fs * 1.3), marg = Math.round(fs * 1.2);
-  const mx = canvasNou(1, 1).getContext('2d'); mx.font = font;
-  const randuri = rupeRanduri(mx, m.text.trim(), (vert ? c.height : c.width) - 2 * marg - 2 * pad);
-  const lung = Math.ceil(Math.max(...randuri.map(r => mx.measureText(r).width))) + 2 * pad;
-  const banda = randuri.length * lh + 2 * pad;
-  const o = vert ? canvasNou(c.width + banda, c.height) : canvasNou(c.width, c.height + banda), x = o.getContext('2d');
-  x.fillStyle = '#fff'; x.fillRect(0, 0, o.width, o.height);
-  x.drawImage(c, poz === 'stanga' ? banda : 0, poz === 'sus' ? banda : 0);
-  x.save();
-  if (poz === 'sus') x.translate(o.width - marg - lung, 0);
-  else if (poz === 'jos') x.translate(o.width - marg - lung, c.height);
-  else if (poz === 'dreapta') { x.translate(o.width, marg); x.rotate(Math.PI / 2); }
-  else { x.translate(0, marg + lung); x.rotate(-Math.PI / 2); }
-  x.fillStyle = '#F6D9CB'; x.fillRect(0, 0, lung, banda);
-  x.fillStyle = '#5A2A16'; x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle';
-  randuri.forEach((r, i) => x.fillText(r, lung / 2, pad + lh * i + lh / 2));
-  x.restore();
-  return o;
-}
+const { canvasNou, incarcaImagine, blobInCanvas, canvasInBlob, detecteazaColturi, ordoneazaColturi, COLTURI_TOT, miniatura, facePDF, pdfDinPagini } = Scaner;
 /* Pagina: originalul se păstrează, ca să poți corecta oricând colțurile */
 async function proceseaza(pg, origC, o = {}) {
-  origC = origC || await blobInCanvas(pg.orig, 2400);
-  let c = indreapta(origC, pg.colturi, S.setari.proportie);
-  aplicaFiltru(c, pg.filtru);
-  c = roteste(c, pg.rot || 0);
-  c = adaugaMesaj(c, pg.mesaj);
-  pg.final = await canvasInBlob(c, S.setari.calitate);
-  pg.fw = c.width; pg.fh = c.height;
-  pg.thumb = await canvasInBlob(miniatura(c, 320), 0.75);
-  elibereazaURL(pg.id); pg.v = (pg.v || 0) + 1;
+  await Scaner.proceseaza(pg, origC, S.setari);
+  elibereazaURL(pg.id);
   await DB.put('pages', pg, o);
   return pg;
-}
-
-/* =====================================================================
-   PDF (generat direct în telefon, fără internet)
-   ===================================================================== */
-function facePDF(imagini) { // [{data:Uint8Array (JPEG), w, h}] → Blob; fiecare pagină A4
-  const enc = new TextEncoder(); const parti = []; let poz = 0; const offs = [];
-  const scrie = x => { const b = typeof x === 'string' ? enc.encode(x) : x; parti.push(b); poz += b.length; };
-  const obiect = (id, ...bucati) => { offs[id] = poz; scrie(`${id} 0 obj\n`); bucati.forEach(scrie); scrie('\nendobj\n'); };
-  scrie(new Uint8Array([37, 80, 68, 70, 45, 49, 46, 52, 10, 37, 226, 227, 207, 211, 10]));
-  const n = imagini.length, kids = [];
-  for (let i = 0; i < n; i++) kids.push(`${3 + i * 3} 0 R`);
-  obiect(1, '<< /Type /Catalog /Pages 2 0 R >>');
-  obiect(2, `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${n} >>`);
-  imagini.forEach((im, i) => {
-    const pid = 3 + i * 3, iid = pid + 1, cid = pid + 2;
-    const peLat = im.w > im.h; const pw = peLat ? 841.89 : 595.28, ph = peLat ? 595.28 : 841.89;
-    const m = 14; const sc = Math.min((pw - 2 * m) / im.w, (ph - 2 * m) / im.h);
-    const dw = im.w * sc, dh = im.h * sc, dx = (pw - dw) / 2, dy = (ph - dh) / 2;
-    const cont = `q ${dw.toFixed(2)} 0 0 ${dh.toFixed(2)} ${dx.toFixed(2)} ${dy.toFixed(2)} cm /Im0 Do Q`;
-    obiect(pid, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Resources << /XObject << /Im0 ${iid} 0 R >> /ProcSet [/PDF /ImageC] >> /Contents ${cid} 0 R >>`);
-    obiect(iid, `<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${im.data.length} >>\nstream\n`, im.data, '\nendstream');
-    obiect(cid, `<< /Length ${cont.length} >>\nstream\n${cont}\nendstream`);
-  });
-  const total = 3 + n * 3; const xref = poz;
-  let x = `xref\n0 ${total}\n0000000000 65535 f \n`;
-  for (let i = 1; i < total; i++) x += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
-  scrie(x + `trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
-  return new Blob(parti, { type: 'application/pdf' });
-}
-async function pdfDinPagini(pagini) {
-  const im = [];
-  for (const p of pagini) im.push({ data: new Uint8Array(await p.final.arrayBuffer()), w: p.fw, h: p.fh });
-  return facePDF(im);
 }
 
 /* =====================================================================
@@ -1155,74 +786,11 @@ function formularDoc(doc, dinLista = false) {
   };
 }
 
-/* ---------------- Editorul de colțuri ---------------- */
+/* ---------------- Editorul de colțuri (din scanner.js) ---------------- */
 async function editeazaColturi(pg) {
-  await lucreaza(true, 'Se deschide…');
-  let origC;
-  try { origC = await blobInCanvas(pg.orig, 2400); } finally { await lucreaza(false); }
-  return new Promise(resolve => {
-    const ov = document.createElement('div'); ov.className = 'ce';
-    ov.innerHTML = `<div class="ce-top"><button class="btn mic sec" data-a="x">Anulează</button><span>Trage de colțuri</span><button class="btn mic" data-a="ok">Aplică</button></div>
-      <div class="ce-zona"><div class="ce-stage"><canvas class="img"></canvas><svg><polygon fill="rgba(217,130,43,.18)" stroke="#D9822B" stroke-width="2"></polygon></svg>
-      ${[0, 1, 2, 3].map(i => `<div class="h" data-i="${i}"></div>`).join('')}</div><canvas class="lupa" width="240" height="240"></canvas></div>
-      <div class="ce-jos"><button class="btn mic sec" data-a="auto">Automat</button><button class="btn mic sec" data-a="tot">Toată poza</button></div>`;
-    document.body.appendChild(ov);
-    const zona = $('.ce-zona', ov), stage = $('.ce-stage', ov), cv = $('canvas.img', ov), poly = $('polygon', ov), lupa = $('canvas.lupa', ov);
-    let col = pg.colturi.map(p => p.slice());
-    let SW = 0, SH = 0;
-    function aseaza() {
-      const zw = zona.clientWidth - 40, zh = zona.clientHeight - 40;
-      const s = Math.min(zw / origC.width, zh / origC.height);
-      SW = origC.width * s; SH = origC.height * s;
-      Object.assign(stage.style, { width: SW + 'px', height: SH + 'px', left: (zona.clientWidth - SW) / 2 + 'px', top: (zona.clientHeight - SH) / 2 + 'px' });
-      cv.width = Math.round(SW * (window.devicePixelRatio || 1)); cv.height = Math.round(SH * (window.devicePixelRatio || 1));
-      cv.getContext('2d').drawImage(origC, 0, 0, cv.width, cv.height);
-      deseneaza();
-    }
-    function deseneaza() {
-      $$('.h', ov).forEach((h, i) => { h.style.left = col[i][0] * SW + 'px'; h.style.top = col[i][1] * SH + 'px'; });
-      poly.setAttribute('points', col.map(p => `${p[0] * SW},${p[1] * SH}`).join(' '));
-    }
-    function arataLupa(i) {
-      const x = lupa.getContext('2d');
-      const cx = col[i][0] * origC.width, cy = col[i][1] * origC.height;
-      const L = Math.max(40, Math.min(origC.width, origC.height) / 10);
-      x.fillStyle = '#000'; x.fillRect(0, 0, 240, 240);
-      x.drawImage(origC, cx - L / 2, cy - L / 2, L, L, 0, 0, 240, 240);
-      x.strokeStyle = '#D9822B'; x.lineWidth = 2; x.beginPath(); x.moveTo(120, 0); x.lineTo(120, 240); x.moveTo(0, 120); x.lineTo(240, 120); x.stroke();
-      lupa.style.display = 'block';
-      lupa.style.left = (col[i][0] < 0.5 ? zona.clientWidth - 132 : 12) + 'px';
-    }
-    $$('.h', ov).forEach(h => {
-      const i = +h.dataset.i;
-      h.addEventListener('pointerdown', e => {
-        e.preventDefault(); h.setPointerCapture(e.pointerId);
-        const r0 = stage.getBoundingClientRect();
-        const ox = e.clientX - (r0.left + col[i][0] * SW), oy = e.clientY - (r0.top + col[i][1] * SH);
-        const mv = ev => {
-          const r = stage.getBoundingClientRect();
-          col[i] = [Math.min(1, Math.max(0, (ev.clientX - ox - r.left) / SW)), Math.min(1, Math.max(0, (ev.clientY - oy - r.top) / SH))];
-          deseneaza(); arataLupa(i);
-        };
-        const up = () => { h.removeEventListener('pointermove', mv); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up); lupa.style.display = 'none'; };
-        h.addEventListener('pointermove', mv); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
-        arataLupa(i);
-      });
-    });
-    const inchide = r => { window.removeEventListener('resize', aseaza); ov.remove(); resolve(r); };
-    $('[data-a="x"]', ov).onclick = () => inchide(false);
-    $('[data-a="tot"]', ov).onclick = () => { col = COLTURI_TOT.map(p => p.slice()); deseneaza(); };
-    $('[data-a="auto"]', ov).onclick = () => { const d = detecteazaColturi(origC); col = d.colturi; deseneaza(); toast(d.sigur ? 'Margini găsite' : 'Nu sunt sigur — verifică', 2000); };
-    $('[data-a="ok"]', ov).onclick = async () => {
-      // colțurile trebuie să formeze un patrulater convex, în ordinea corectă
-      pg.colturi = ordoneazaColturi(col); pg.sigur = true;
-      await lucreaza(true, 'Îndrept pagina…');
-      try { await proceseaza(pg, origC); } finally { await lucreaza(false); }
-      inchide(true); randeazaEditor();
-    };
-    window.addEventListener('resize', aseaza);
-    requestAnimationFrame(aseaza);
-  });
+  const ok = await Scaner.editeazaColturi(pg, { lucreaza, toast, proceseaza: (p, origC) => proceseaza(p, origC) });
+  if (ok) randeazaEditor();
+  return ok;
 }
 
 /* =====================================================================
@@ -1674,7 +1242,7 @@ async function urcaCoada() {
 }
 
 /* Reîncarc ce se vede, fără să stric o fereastră deschisă sau o prelucrare în curs */
-const ocupat = () => !!document.querySelector('.ce, .fundal') || $('#lucreaza').classList.contains('vizibil');
+const ocupat = () => !!document.querySelector('.ce, .sc-ce, .fundal, .sc-fundal') || $('#lucreaza').classList.contains('vizibil');
 async function reimprospateazaDupaSync(anunta) {
   if (ocupat()) { SY.deRandat = true; return; }
   SY.deRandat = false;
