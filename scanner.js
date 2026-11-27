@@ -11,7 +11,7 @@
    ===================================================================== */
 (function () {
 'use strict';
-const VERSIUNE_SCANER = '1.0';
+const VERSIUNE_SCANER = '1.1';
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -494,6 +494,10 @@ const CSS = `
 .sc-gol{text-align:center;padding:30px 16px;color:#667180}
 .sc-gol .mare{font-size:44px;margin-bottom:6px}
 .sc-rand{display:flex;gap:8px;flex-wrap:wrap}.sc-rand>.sc-btn{flex:1}
+.sc-scanbtns.trei{grid-template-columns:1fr 1fr 1fr}
+.sc-asteapta{display:flex;align-items:center;gap:10px;background:#EAF1FB;border:1px solid #9DB9E2;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:14px}
+.sc-asteapta .sc-spin{width:22px;height:22px;border-width:3px;border-color:rgba(30,51,72,.2);border-top-color:#1E3348;flex:none}
+.sc-asteapta div{flex:1}
 `;
 let pregatit = false, elLucreaza, elToast;
 function pregateste() {
@@ -657,6 +661,7 @@ function fereastraMesaj(pg, toatePaginile, laAplicare) {
            sterge:   async pg => {}      // pagina se șterge
            ordine:   async pagini => {}  // s-a schimbat ordinea paginilor
            trimite:  () => {}            // opțional: butonul „Trimite”
+           dinTelefon: ctrl => stop        // opțional: butonul „De pe telefon” (ctrl.adauga(pg), ctrl.stare(text), ctrl.gata())
            laInchidere: () => {} }
    ===================================================================== */
 function editor(opt) {
@@ -673,6 +678,30 @@ function editor(opt) {
   document.documentElement.style.overflow = 'hidden';
   const corp = $('.sc-ed-corp', ov), inCam = $('[data-cam]', ov), inGal = $('[data-gal]', ov);
   const refa = async (pg, origC) => { await proceseaza(pg, origC, st); await opt.salveaza(pg); };
+  /* Pagini venite de pe telefon (aplicația Scan): aștept până apeși „Oprește” sau „Gata” */
+  let tel = null; // { text, stop }
+  const coadaTel = [];
+  async function adaugaGata(pg) { // pagină deja prelucrată (are final + thumb)
+    pg.ord = P.length; await opt.salveaza(pg); P.push(pg); cur = P.length - 1;
+    P.forEach((x, i) => x.ord = i); opt.ordine && await opt.ordine(P);
+    toast('📲 Pagină nouă de pe telefon', 2500);
+    if (document.querySelector('.sc-ce, .sc-fundal')) { coadaTel.push(pg); return; }
+    randeaza();
+  }
+  function pornesteTelefon() {
+    if (tel) return;
+    tel = { text: 'Mă conectez…', stop: null };
+    randeaza();
+    const ctrl = {
+      adauga: pg => adaugaGata(pg),
+      stare: t => { if (tel) { tel.text = t; const e = $('.sc-asteapta div', corp); if (e) e.innerHTML = t; } },
+      gata: () => { opresteTelefon(); },
+    };
+    Promise.resolve(opt.dinTelefon(ctrl)).then(stop => { if (tel) tel.stop = stop; else stop && stop(); })
+      .catch(e => { toast('Legătura cu telefonul n-a mers: ' + e.message, 5000); opresteTelefon(); });
+  }
+  function opresteTelefon() { if (!tel) return; const s = tel.stop; tel = null; s && s(); if (ov.isConnected) randeaza(); }
+  const intervalTel = setInterval(() => { if (coadaTel.length && ov.isConnected && !document.querySelector('.sc-ce, .sc-fundal')) { coadaTel.length = 0; randeaza(); } }, 1000);
   inCam.onchange = () => { const f = [...inCam.files]; inCam.value = ''; adauga(f); };
   inGal.onchange = () => { const f = [...inGal.files]; inGal.value = ''; adauga(f); };
   async function adauga(files) {
@@ -697,14 +726,15 @@ function editor(opt) {
     } else if (nesigure.length) toast(`${nesigure.length} pagini de verificat (punct galben).`, 3500);
   }
   function randeaza() {
+    const bara = tel ? `<div class="sc-asteapta"><span class="sc-spin"></span><div>${tel.text}</div><button class="sc-btn mic sec" data-telstop>Oprește</button></div>` : '';
     if (!P.length) {
-      corp.innerHTML = `<div class="sc-gol"><div class="mare">📷</div><b>Scanează documentul</b><br>
+      corp.innerHTML = bara + `<div class="sc-gol"><div class="mare">📷</div><b>Scanează documentul</b><br>
         Pune foaia pe o suprafață mai închisă la culoare, cu puțin spațiu în jur. Colțurile se găsesc singure.</div>
-        <div class="sc-scanbtns"><button class="sc-btn" data-c>📷 Fotografiază</button><button class="sc-btn sec" data-g>🖼 Din galerie</button></div>
+        <div class="sc-scanbtns ${opt.dinTelefon ? 'trei' : ''}">${opt.dinTelefon ? '<button class="sc-btn" data-tel>📲 De pe telefon</button>' : ''}<button class="sc-btn ${opt.dinTelefon ? 'sec' : ''}" data-c>📷 Fotografiază</button><button class="sc-btn sec" data-g>🖼 Din galerie</button></div>
         <p class="sc-muted" style="font-size:13.5px;margin:10px 4px">Dacă documentul are mai multe pagini, le adaugi una după alta. Fiecare pagină se salvează imediat.</p>`;
     } else {
       cur = Math.min(cur, P.length - 1); const pg = P[cur];
-      corp.innerHTML = `
+      corp.innerHTML = bara + `
         <div class="sc-preview">${pg.sigur ? '' : `<div class="avert">Verifică marginile acestei pagini</div>`}<img src="${url(pg, 'final')}" alt="Pagina ${cur + 1}"></div>
         <div class="sc-unelte">
           <button data-u="col"><span class="ic">⌗</span>Colțuri</button>
@@ -715,7 +745,7 @@ function editor(opt) {
         </div>
         <div class="sc-filtre">${FILTRE.map(([k, t]) => `<button data-f="${k}" class="${pg.filtru === k ? 'activ' : ''}">${t}</button>`).join('')}</div>
         <div class="sc-banda">${P.map((p, i) => `<button class="pg ${i === cur ? 'activ' : ''}" data-i="${i}"><img src="${url(p, 'thumb')}" alt=""><i>${i + 1}</i>${p.sigur ? '' : '<span class="w"></span>'}</button>`).join('')}</div>
-        <div class="sc-scanbtns"><button class="sc-btn sec" data-c>📷 Încă o pagină</button><button class="sc-btn sec" data-g>🖼 Din galerie</button></div>
+        <div class="sc-scanbtns ${opt.dinTelefon ? 'trei' : ''}">${opt.dinTelefon ? '<button class="sc-btn sec" data-tel>📲 De pe telefon</button>' : ''}<button class="sc-btn sec" data-c>📷 Încă o pagină</button><button class="sc-btn sec" data-g>🖼 Din galerie</button></div>
         <div class="sc-rand" style="margin-top:6px">${opt.trimite ? '<button class="sc-btn sec" data-t>📤 Trimite</button>' : ''}<button class="sc-btn" data-gata2 style="flex:2">✓ Gata</button></div>`;
       $$('.sc-banda .pg', corp).forEach(b => b.onclick = () => { cur = +b.dataset.i; randeaza(); });
       $$('[data-f]', corp).forEach(b => b.onclick = async () => {
@@ -744,15 +774,19 @@ function editor(opt) {
       $('[data-gata2]', corp).onclick = inchide;
     }
     $('[data-c]', corp).onclick = () => inCam.click();
+    if ($('[data-tel]', corp)) { $('[data-tel]', corp).onclick = pornesteTelefon; if (tel) $('[data-tel]', corp).disabled = true; }
+    if ($('[data-telstop]', corp)) $('[data-telstop]', corp).onclick = opresteTelefon;
     $('[data-g]', corp).onclick = () => inGal.click();
   }
   function inchide() {
+    opresteTelefon(); clearInterval(intervalTel);
     for (const u of URLS.values()) URL.revokeObjectURL(u);
     ov.remove(); document.documentElement.style.overflow = '';
     opt.laInchidere && opt.laInchidere();
   }
   $('[data-gata]', ov).onclick = inchide;
   randeaza();
+  if (opt.pornesteTelefon && opt.dinTelefon) pornesteTelefon();
   return { inchide, adauga, el: ov };
 }
 

@@ -1,5 +1,5 @@
 // Scanare documente — rețeaua întâi, apoi cache (merge și fără semnal)
-const CACHE_NAME = 'scanare-cache-v14';
+const CACHE_NAME = 'scanare-cache-v15';
 const FISIERE = ['./', './index.html', './scanner.js', './manifest.json', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(FISIERE))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
